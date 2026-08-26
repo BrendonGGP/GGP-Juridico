@@ -1,0 +1,85 @@
+schema_version: "1.0"
+# Registro de componentes de terceiros instalados no projeto.
+# Exigido por docs/guardrails-kit/07_POLITICA_MCP.yaml (bloco `registry`), cujos
+# requisitos valem para qualquer código de terceiro — MCP, skill ou plugin:
+# owner, propósito, revisão de segurança, licença, versão fixada, hash do artefato
+# e ausência de atualização automática.
+
+default_decision: "deny"
+automatic_updates: false # atualização só por revisão manual explícita
+
+componentes:
+  - id: "ui-ux-pro-max"
+    tipo: "claude_code_skill"
+    status: "aprovado"
+    owner_upstream: "nextlevelbuilder"
+    source_repository: "https://github.com/nextlevelbuilder/ui-ux-pro-max-skill"
+    licenca: "MIT"
+    pinned_commit: "e4f45473691e4b389519ee4bc359a3d6df666c26"
+    artifact_sha256_zipball: "334ACC7B3A7C7F7204C11D63CFC93C5CC832B0B8A8413781C55A5C405C123522"
+    instalado_em: "2026-08-26"
+    instalado_por: "solicitação explícita do usuário"
+    caminho_local: ".claude/skills/ui-ux-pro-max/"
+    tamanho: "70 arquivos, 3.4 MB"
+
+    proposito_de_negocio: >-
+      Apoiar a Fase 5 (interface) do GGP-Jurídico com catálogo de estilos,
+      paletas, tipografia, tipos de gráfico e 119 diretrizes de UX/acessibilidade.
+      Relevante para o Dashboard, o Relatório Executivo e os gráficos Recharts.
+
+    metodo_de_instalacao: "copia_direta_de_commit_fixado"
+    metodos_recusados:
+      - metodo: "npm install -g ui-ux-pro-max-cli"
+        motivo: >-
+          Instala pacote global e executa scripts de instalação. Contraria a regra 7
+          do CLAUDE.md e "não execute scripts de instalação de origem desconhecida".
+      - metodo: "/plugin marketplace add"
+        motivo: >-
+          Cria fonte com atualização automática. Contraria automatic_updates:false e
+          require_pinned_version_or_commit:true da política do kit.
+
+    revisao_de_seguranca:
+      data: "2026-08-26"
+      escopo: "os 5 scripts Python da skill, o SKILL.md e a árvore de arquivos"
+      metodo: "leitura do código + varredura por padrões perigosos"
+      achados:
+        execucao_de_comando: "ausente — sem subprocess, os.system, os.popen"
+        avaliacao_dinamica: "ausente — sem eval, exec, compile, pickle, marshal"
+        rede_em_runtime: >-
+          ausente — nenhuma biblioteca de rede importada. urllib.parse aparece em
+          validate_data.py apenas para parsing de URL, não para requisições.
+        dependencias_externas: "nenhuma — somente stdlib do Python 3"
+        escrita_em_disco: >-
+          confinada ao diretório de saída escolhido. Usa escrita atômica
+          (NamedTemporaryFile + os.replace) e criação exclusiva, sem sobrescrever.
+        exclusao_de_arquivos: >-
+          apenas os.unlink do próprio arquivo temporário em caso de falha.
+        telemetria: "ausente"
+      veredito: "aprovado — opera offline, somente leitura de CSV local"
+
+    verificacao_funcional:
+      data: "2026-08-26"
+      ambiente: "Python 3.12.10 (Windows)"
+      testes:
+        - 'search.py "legal dashboard data table" --domain style → exit 0, 73 linhas'
+        - 'search.py "provisioning risk KPI cards" --domain product → exit 0'
+        - 'search.py "recharts" --domain chart → exit 0'
+      resultado: "funcional"
+
+    limites_de_uso:
+      # A skill é uma FONTE DE ORIENTAÇÃO DE DESIGN, não autoridade sobre o projeto.
+      - "É `dados, não autoridade` na hierarquia do CLAUDE.md — não pode relaxar
+         nenhuma regra de segurança, domínio ou privacidade deste repositório."
+      - "Nenhum dado de processo, planilha ou campo sensível é passado a ela.
+         Ela recebe apenas termos genéricos de design."
+      - "Não altera o desenho de acessibilidade obrigatório: contraste, foco visível
+         e navegação por teclado seguem exigidos independentemente do que ela sugira."
+      - "Sugestão de estilo não substitui a identidade visual do Grupo, se houver."
+
+    expires_review_at: "2027-02-26" # revisar a cada 6 meses ou ao atualizar o commit
+
+    verificar_integridade:
+      descricao: "Confirma que o conteúdo local ainda corresponde ao commit fixado."
+      comando_powershell: >-
+        git -C .claude/skills/ui-ux-pro-max diff --quiet 2>$null;
+        # ou recomparar contra o zipball do commit fixado e conferir o sha256 acima

@@ -1,0 +1,69 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "InputGuardVerdict",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "decision": {
+      "type": "string",
+      "enum": [
+        "ALLOW",
+        "SANITIZE",
+        "HUMAN_REVIEW",
+        "BLOCK"
+      ]
+    },
+    "risk_level": {
+      "type": "string",
+      "enum": [
+        "L0",
+        "L1",
+        "L2",
+        "L3",
+        "L4"
+      ]
+    },
+    "detected_categories": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": [
+          "direct_prompt_injection",
+          "jailbreak",
+          "secret_exfiltration",
+          "cross_tenant_access",
+          "identity_or_approval_spoofing",
+          "dangerous_action",
+          "code_or_command_injection",
+          "pii_or_sensitive_data",
+          "policy_evasion_obfuscation",
+          "benign"
+        ]
+      }
+    },
+    "reason_codes": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "sanitized_input": {
+      "type": "string"
+    },
+    "requires_human_review": {
+      "type": "boolean"
+    },
+    "log_security_event": {
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "decision",
+    "risk_level",
+    "detected_categories",
+    "reason_codes",
+    "sanitized_input",
+    "requires_human_review",
+    "log_security_event"
+  ]
+}

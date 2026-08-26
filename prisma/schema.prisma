@@ -1,0 +1,359 @@
+// GGP-Jurídico — schema do banco
+//
+// As regras de domínio invioláveis do CLAUDE.md estão codificadas aqui como
+// ESTRUTURA, não como convenção. Cada uma está marcada com "REGRA N".
+// Alterar qualquer uma delas exige revisar o CLAUDE.md primeiro.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+// Prisma 7: as URLs NÃO ficam mais aqui.
+//   - migrações  -> prisma.config.ts (usa DIRECT_URL)
+//   - runtime    -> lib/db.ts, via driver adapter (usa DATABASE_URL)
+datasource db {
+  provider = "postgresql"
+}
+
+// ===========================================================================
+// ACESSO E AUDITORIA
+// ===========================================================================
+
+enum Perfil {
+  JURIDICO
+  DIRETORIA
+  CONTABILIDADE
+  ADMIN
+}
+
+model Usuario {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  nome      String
+  perfil    Perfil
+  ativo     Boolean  @default(true)
+  criadoEm  DateTime @default(now())
+
+  importacoes Importacao[]
+  auditoria   LogAuditoria[]
+
+  @@map("usuario")
+}
+
+/// Trilha de auditoria: login, importação, exportação, mudança de perfil.
+/// NUNCA registrar PII nem valor financeiro por processo aqui.
+model LogAuditoria {
+  id        String   @id @default(cuid())
+  usuarioId String?
+  acao      String
+  alvo      String?
+  detalhe   Json?
+  criadoEm  DateTime @default(now())
+
+  usuario Usuario? @relation(fields: [usuarioId], references: [id])
+
+  @@index([criadoEm])
+  @@index([usuarioId])
+  @@map("log_auditoria")
+}
+
+// ===========================================================================
+// CARTEIRAS E PARCEIROS
+// ===========================================================================
+
+/// ~11 clientes distintos. A aba "DEMAIS SEVEN..." mistura 8 deles e é
+/// desmembrada pela coluna Cliente na ingestão.
+model Cliente {
+  id       String  @id @default(cuid())
+  nome     String  @unique
+  abaOrigem String?
+  ativo    Boolean @default(true)
+
+  processos Processo[]
+
+  @@map("cliente")
+}
+
+/// M.G.A — representante/corretor de seguros. Só a SPLIT RISK é seguradora.
+model Mga {
+  id           String @id @default(cuid())
+  nomeCanonico String @unique
+
+  sinonimos MgaSinonimo[]
+  snapshots ProcessoSnapshot[]
+
+  @@map("mga")
+}
+
+/// Tabela VIVA de sinônimos (Seven/Sevem, Lince/Linceseg, Oceanica/Oceanica
+/// Brasil...). Grafia desconhecida vai para a tela de validação — nunca é
+/// corrigida automaticamente no código.
+model MgaSinonimo {
+  id     String @id @default(cuid())
+  mgaId  String
+  grafia String @unique
+
+  mga Mga @relation(fields: [mgaId], references: [id], onDelete: Cascade)
+
+  @@map("mga_sinonimo")
+}
+
+// ===========================================================================
+// INGESTÃO
+// ===========================================================================
+
+enum StatusImportacao {
+  EM_ANDAMENTO
+  CONCLUIDA
+  CONCLUIDA_COM_PENDENCIAS
+  FALHOU
+  REVERTIDA
+}
+
+/// REGRA 6 — Cada importação é um snapshot versionado. NUNCA sobrescrever o
+/// histórico. A "foto do mês" é a importação mais recente; as anteriores
+/// permanecem para análise comparativa.
+model Importacao {
+  id             String           @id @default(cuid())
+  mesReferencia  String // "2026-07"
+  status         StatusImportacao @default(EM_ANDAMENTO)
+
+  /// Idempotência: reenviar o mesmo arquivo não duplica nada.
+  idempotencyKey String  @unique
+  arquivoGeralNome    String?
+  arquivoGeralHash    String?
+  arquivoAcordosNome  String?
+  arquivoAcordosHash  String?
+
+  totalLinhasLidas   Int @default(0)
+  totalLinhasGravadas Int @default(0)
+  totalPendencias    Int @default(0)
+
+  usuarioId String?
+  iniciadaEm DateTime @default(now())
+  concluidaEm DateTime?
+
+  usuario   Usuario?           @relation(fields: [usuarioId], references: [id])
+  snapshots ProcessoSnapshot[]
+  parcelas  ParcelaAcordo[]
+  validacoes LogValidacao[]
+
+  @@index([mesReferencia])
+  @@map("importacao")
+}
+
+/// REGRA 3 — Nunca ler coluna por nome fixo. Os nomes mudam entre os meses
+/// (junho→julho/2026 renomeou quase toda coluna relevante). Cada campo lógico
+/// reconhece vários apelidos; apelido desconhecido vira pendência.
+model MapeamentoColuna {
+  id          String  @id @default(cuid())
+  campoLogico String
+  apelido     String
+  ativo       Boolean @default(true)
+  criadoEm    DateTime @default(now())
+
+  @@unique([apelido])
+  @@index([campoLogico])
+  @@map("mapeamento_coluna")
+}
+
+enum TipoValidacao {
+  COLUNA_NAO_RECONHECIDA
+  GERAL_DIVERGENTE
+  NUMERO_PROCESSO_REPETIDO
+  CONFLITO_BAIXADOS_ATIVA
+  AREA_DIVERGE_TIPO_ACAO
+  MGA_DESCONHECIDO
+  ACORDO_ORFAO
+  ABA_NAO_RECONHECIDA
+  VALOR_NAO_PARSEAVEL
+  DATA_NAO_PARSEAVEL
+}
+
+enum Severidade {
+  INFO
+  AVISO
+  ERRO
+}
+
+/// REGRA 10 — Uma linha com problema fica pendente e NÃO trava o lote.
+/// Tudo o que a ingestão não soube resolver aparece aqui para revisão humana.
+model LogValidacao {
+  id           String        @id @default(cuid())
+  importacaoId String
+  tipo         TipoValidacao
+  severidade   Severidade    @default(AVISO)
+  aba          String?
+  linha        Int?
+  campo        String?
+  detalhe      String
+  resolvido    Boolean       @default(false)
+  criadoEm     DateTime      @default(now())
+
+  importacao Importacao @relation(fields: [importacaoId], references: [id], onDelete: Cascade)
+
+  @@index([importacaoId, resolvido])
+  @@index([tipo])
+  @@map("log_validacao")
+}
+
+// ===========================================================================
+// PROCESSOS
+// ===========================================================================
+
+enum Risco {
+  PROVAVEL
+  POSSIVEL
+  REMOTO
+}
+
+enum PoloCliente {
+  ATIVA
+  PASSIVA
+  OUTROS
+}
+
+/// REGRA 5 — A chave técnica é este `id`, gerado pelo sistema.
+///
+/// `numeroProcesso` NÃO é único: tem o valor genérico "A DISTRIBUIR", repetição
+/// legítima multi-parte, e IDPJ que tramita nos mesmos autos do principal com
+/// ficha própria.
+///
+/// `fichaExterna` é o número do escritório terceirizado. Deliberadamente NÃO é
+/// chave: numa troca de escritório, todo o histórico perderia o vínculo.
+model Processo {
+  id             String  @id @default(cuid())
+  numeroProcesso String?
+  fichaExterna   String?
+  clienteId      String?
+  criadoEm       DateTime @default(now())
+
+  cliente   Cliente?           @relation(fields: [clienteId], references: [id])
+  snapshots ProcessoSnapshot[]
+  parcelas  ParcelaAcordo[]
+
+  @@index([numeroProcesso])
+  @@index([fichaExterna])
+  @@map("processo")
+}
+
+/// O estado de um processo em UMA importação. É a linha da planilha daquele mês.
+model ProcessoSnapshot {
+  id           String @id @default(cuid())
+  importacaoId String
+  processoId   String
+
+  // --- Origem ---
+  abaOrigem String
+  /// REGRA 8 — BAIXADOS vence quando o processo também aparece em aba ativa.
+  encerrado Boolean @default(false)
+
+  // --- Classificação ---
+  tipoAcao String?
+  materia  String?
+  /// REGRA 7 — O filtro de Trabalhista usa ESTE campo, não `tipoAcao`.
+  area     String?
+  fase     String?
+  produto  String?
+
+  // --- Partes (SENSÍVEL — mascarar por padrão na UI) ---
+  autor          String?
+  reu            String?
+  todosEnvolvidos String?
+  comarca        String?
+  uf             String?
+
+  // --- Datas ---
+  /// Base do cálculo de duração (validado com o Jurídico, não usar ajuizamento).
+  dataCadastro     DateTime?
+  dataAjuizamento  DateTime?
+  dataCitacao      DateTime?
+  dataEncerramento DateTime?
+  tipoEncerramento String?
+
+  // --- Risco e provisionamento ---
+  /// Nulável de propósito: a aba BAIXADOS não traz estes campos.
+  risco             Risco?
+  valorProvisionado Decimal? @db.Decimal(18, 2)
+  justificativaProvisionamento String?
+  poloCliente       PoloCliente?
+
+  // --- Valores ---
+  valorCausa Decimal? @db.Decimal(18, 2)
+
+  /// REGRA 1 — `valorAcordo` e `valorCondenacao` coexistem em 32 processos.
+  /// NUNCA somar os dois. O acordo substitui a condenação.
+  /// A escolha é feita em lib/calculo/valor-devido.ts, o único lugar autorizado.
+  valorAcordo     Decimal? @db.Decimal(18, 2)
+  valorCondenacao Decimal? @db.Decimal(18, 2)
+  termosAcordo    String?
+  dataCondenacao  DateTime?
+
+  /// REGRA 2 — Valor CURADO manualmente pelo escritório. Nunca recalcular por
+  /// fórmula. Guardado como texto porque a coluna mistura número e texto por
+  /// regra de negócio ("0 (zerado)", "0,00 - Sentença procedente").
+  exitoProcessoBruto      String?
+  /// Valor numérico extraído do bruto, quando foi possível. null = não numérico.
+  exitoProcessoNumerico   Decimal? @db.Decimal(18, 2)
+  justificativaExito      String?
+
+  resultadoSentenca String?
+  observacaoResultado String?
+
+  // --- Seguro / sinistro (SENSÍVEL) ---
+  mgaId              String?
+  mgaNoPoloPassivo   Boolean?
+  placaVeiculo       String?
+  numeroApolice      String?
+  numeroSinistro     String?
+  motivoSinistro     String?
+  dataSinistro       DateTime?
+  oficina            String?
+
+  // --- Operacional ---
+  statusBruto     String?
+  situacaoAtual   String?
+  proximosPassos  String?
+  descricaoSumaria String?
+
+  /// Colunas que existiam na planilha mas ainda não têm campo lógico mapeado.
+  camposNaoMapeados Json?
+
+  importacao Importacao @relation(fields: [importacaoId], references: [id], onDelete: Cascade)
+  processo   Processo   @relation(fields: [processoId], references: [id], onDelete: Cascade)
+  mga        Mga?       @relation(fields: [mgaId], references: [id])
+
+  /// Um processo aparece no máximo uma vez por importação.
+  @@unique([importacaoId, processoId])
+  @@index([importacaoId, risco])
+  @@index([importacaoId, area])
+  @@index([importacaoId, encerrado])
+  @@map("processo_snapshot")
+}
+
+/// REGRA 4 — Chave composta (processo + mês de referência) com UPSERT.
+///
+/// A planilha de um mês já traz colunas dos meses seguintes. No mês seguinte
+/// ela reenvia os mesmos meses futuros. Sem esta unicidade, cada reenvio soma
+/// parcela em cima da existente e a Projeção de Desembolso infla silenciosamente.
+model ParcelaAcordo {
+  id         String @id @default(cuid())
+  processoId String
+
+  /// "2026-07" — o mês a que a parcela se refere, não o mês da importação.
+  mesReferencia String
+  dataPagamento DateTime?
+  valorParcela  Decimal   @db.Decimal(18, 2)
+
+  /// Qual importação gravou/atualizou esta parcela pela última vez.
+  importacaoId String
+  atualizadoEm DateTime @updatedAt
+
+  processo   Processo   @relation(fields: [processoId], references: [id], onDelete: Cascade)
+  importacao Importacao @relation(fields: [importacaoId], references: [id])
+
+  /// A trava que impede a duplicação. NÃO REMOVER.
+  @@unique([processoId, mesReferencia])
+  @@index([mesReferencia])
+  @@map("parcela_acordo")
+}

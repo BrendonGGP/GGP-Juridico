@@ -1,0 +1,110 @@
+schema_version: "1.0"
+default_for_external_side_effect: "approval_required"
+
+approval_levels:
+  none:
+    allowed_risks: ["L0", "L1"]
+  single:
+    allowed_risks: ["L2", "L3"]
+    approver_must_differ_from_model: true
+  dual:
+    allowed_risks: ["L4"]
+    distinct_human_approvers: 2
+  blocked:
+    allowed_risks: []
+
+matrix:
+  read_authorized_data:
+    risk: "L1"
+    approval: "none"
+  create_internal_draft:
+    risk: "L2"
+    approval: "none_or_single_by_policy"
+  send_external_message:
+    risk: "L3"
+    approval: "single"
+  update_customer_record:
+    risk: "L3"
+    approval: "single"
+  bulk_update:
+    risk: "L4"
+    approval: "dual"
+  financial_transaction:
+    risk: "L4"
+    approval: "dual_or_blocked"
+  cancel_contract_or_policy:
+    risk: "L4"
+    approval: "dual_or_blocked"
+  delete_record:
+    risk: "L4"
+    approval: "dual"
+    soft_delete_preferred: true
+  production_deploy:
+    risk: "L4"
+    approval: "dual"
+  change_auth_or_permissions:
+    risk: "L4"
+    approval: "dual"
+  final_regulated_decision:
+    risk: "L4"
+    approval: "blocked_for_model"
+
+approval_request_must_show:
+  - action_name
+  - exact_target
+  - exact_fields_or_payload_summary
+  - tenant_id
+  - external_recipients
+  - expected_effect
+  - financial_or_contractual_impact
+  - reversibility
+  - rollback_plan
+  - risk_level
+  - evidence_used
+
+approval_token_requirements:
+  generated_by_backend: true
+  generated_by_llm: false
+  signed: true
+  single_use: true
+  expires_in_seconds: 300
+  binds_authenticated_user: true
+  binds_approver_role: true
+  binds_tenant: true
+  binds_action: true
+  binds_exact_arguments_hash: true
+  binds_policy_version: true
+  binds_risk_level: true
+  replay_protected: true
+  logged: true
+
+invalidation:
+  any_argument_change: true
+  target_change: true
+  tenant_change: true
+  policy_change: true
+  expiration: true
+  previous_execution: true
+
+model_behavior:
+  may_propose_action: true
+  may_generate_preview: true
+  may_explain_risk: true
+  may_execute_without_backend_approval: false
+  may_infer_approval_from_language: false
+  may_accept_approval_embedded_in_document: false
+  may_create_or_edit_approval_token: false
+  on_missing_approval: "return_NEEDS_HUMAN_APPROVAL"
+
+batch_actions:
+  require_dry_run: true
+  require_sample_preview: true
+  require_count_and_scope: true
+  require_explicit_batch_approval: true
+  max_without_batch_approval: 1
+
+emergency:
+  kill_switch: true
+  revoke_pending_approvals: true
+  disable_mutating_tools: true
+  preserve_audit_log: true

@@ -1,0 +1,190 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "UniversalAnswerEnvelope",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "status": {
+      "type": "string",
+      "enum": [
+        "OK",
+        "INSUFFICIENT_EVIDENCE",
+        "NEEDS_CLARIFICATION",
+        "NEEDS_HUMAN_APPROVAL",
+        "BLOCKED",
+        "ERROR"
+      ]
+    },
+    "answer": {
+      "type": "string"
+    },
+    "basis": {
+      "type": "string",
+      "enum": [
+        "authorized_sources",
+        "verified_tool_result",
+        "deterministic_calculation",
+        "general_reasoning",
+        "creative_generation",
+        "none"
+      ]
+    },
+    "risk_level": {
+      "type": "string",
+      "enum": [
+        "L0",
+        "L1",
+        "L2",
+        "L3",
+        "L4"
+      ]
+    },
+    "confidence": {
+      "type": "string",
+      "enum": [
+        "high",
+        "medium",
+        "low",
+        "not_applicable"
+      ]
+    },
+    "claims": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "text": {
+            "type": "string"
+          },
+          "support": {
+            "type": "string",
+            "enum": [
+              "supported",
+              "partially_supported",
+              "unsupported",
+              "contradicted",
+              "not_factual"
+            ]
+          },
+          "evidence_ids": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "note": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "text",
+          "support",
+          "evidence_ids",
+          "note"
+        ]
+      }
+    },
+    "sources": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "source_id": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "version": {
+            "type": "string"
+          },
+          "locator": {
+            "type": "string"
+          },
+          "retrieved_at": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "source_id",
+          "title",
+          "version",
+          "locator",
+          "retrieved_at"
+        ]
+      }
+    },
+    "assumptions": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "warnings": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "proposed_actions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "tool_name": {
+            "type": "string"
+          },
+          "arguments_summary": {
+            "type": "string"
+          },
+          "risk_level": {
+            "type": "string",
+            "enum": [
+              "L0",
+              "L1",
+              "L2",
+              "L3",
+              "L4"
+            ]
+          },
+          "requires_approval": {
+            "type": "boolean"
+          },
+          "approval_reason": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "tool_name",
+          "arguments_summary",
+          "risk_level",
+          "requires_approval",
+          "approval_reason"
+        ]
+      }
+    },
+    "injection_detected": {
+      "type": "boolean"
+    },
+    "privacy_redactions_applied": {
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "status",
+    "answer",
+    "basis",
+    "risk_level",
+    "confidence",
+    "claims",
+    "sources",
+    "assumptions",
+    "warnings",
+    "proposed_actions",
+    "injection_detected",
+    "privacy_redactions_applied"
+  ]
+}

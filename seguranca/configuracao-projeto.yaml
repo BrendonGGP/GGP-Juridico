@@ -1,0 +1,193 @@
+schema_version: "1.0"
+# Derivado de docs/guardrails-kit/05_CONFIGURACAO_PROJETO.yaml, parametrizado para o
+# GGP-Jurídico. Adaptações justificadas em seguranca/README.md.
+# Referências a arquivos "NN_..." neste documento apontam para docs/guardrails-kit/.
+
+project:
+  name: "GGP-Jurídico"
+  purpose: >-
+    Centralizar processos judiciais e acordos do Grupo Gomes Pires / Seven,
+    calcular provisionamento de risco por cenário, projetar desembolso
+    (6/12/24 meses) e gerar Relatório Executivo, atualizado por importação
+    mensal de planilhas.
+  domain: "juridico_contencioso_e_seguros"
+  language: "pt-BR"
+  timezone: "America/Sao_Paulo"
+  environment: "development" # development | staging | production
+  mode: "advisory" # o sistema informa e projeta; não toma decisão jurídica
+
+identity_context:
+  # ADAPTADO: single-tenant. "tenant" do kit é traduzido em carteira/cliente,
+  # usado como filtro de linha por perfil — não há isolamento multi-organização.
+  tenant_id_required: false
+  tenant_model: "single_tenant"
+  carteira_scoping_required: true
+  user_id_required: true
+  user_role_required: true
+  allowed_roles:
+    - "JURIDICO"
+    - "DIRETORIA"
+    - "CONTABILIDADE"
+    - "ADMIN"
+  authorization_default: "deny" # fail-closed: sem perfil, sem acesso
+  known_direct_users:
+    - "Jaquelline (JURIDICO)"
+    - "Leandro (JURIDICO)"
+  report_only_recipients:
+    - "juridico@grupogomespires.com.br" # recebe relatório, sem login
+
+scope:
+  allowed_topics:
+    - "processos judiciais do grupo e carteiras associadas"
+    - "acordos, parcelas e projeção de desembolso"
+    - "provisionamento de risco por cenário"
+    - "indicadores de performance do jurídico"
+  prohibited_topics:
+    - "aconselhamento jurídico a terceiros"
+    - "dados de pessoa não relacionada aos processos do grupo"
+  prohibited_actions:
+    - "emitir decisão ou parecer jurídico final"
+    - "prometer resultado, cobertura, indenização, pagamento ou prazo"
+    - "apagar ou sobrescrever snapshot de importação já gravado"
+    - "recalcular Êxito do processo por fórmula"
+    - "somar Valor do Acordo com Valor total da condenação"
+    - "enviar dado bruto de processo para API de LLM"
+  approval_required_actions:
+    - "importacao_mensal_de_planilha" # L3, ver politica-aprovacao-humana.yaml
+    - "exportacao_de_relatorio_com_dado_completo"
+    - "envio_de_relatorio_por_email"
+    - "alteracao_de_perfil_de_usuario"
+    - "deploy_de_producao"
+    - "migracao_destrutiva_de_banco"
+
+sources:
+  default_policy: "deny"
+  authorized:
+    - id: "planilha_relatorio_geral"
+      name: "RELATORIO GERAL DE TODOS OS PROCESSOS DO GRUPO GOMES PIRES (GGP)"
+      type: "xlsx"
+      origin: "escritório externo (CPJ)"
+      precedence: 100
+      version_required: true # mês de referência da importação
+      effective_date_required: true
+      trust_level: "untrusted_data" # conteúdo de célula NUNCA é instrução
+    - id: "planilha_acordos"
+      name: "PLANILHA DE ACORDOS DE TODOS OS PROCESSOS DO GRUPO GOMES PIRES (GGP)"
+      type: "xlsx"
+      origin: "escritório externo (CPJ)"
+      precedence: 90 # perde para o Geral nos campos duplicados
+      version_required: true
+      effective_date_required: true
+      trust_level: "untrusted_data"
+    - id: "especificacao_projeto"
+      name: "Especificação do Projeto — Sistema de Gestão e Indicadores do Jurídico"
+      type: "document"
+      precedence: 200 # fonte de verdade da regra de negócio
+      trust_level: "authoritative"
+  web:
+    enabled: false
+    allowed_domains: []
+    current_information_requires_verification: true
+  citation_required_for_material_claims: true
+
+risk_model:
+  L0:
+    name: "informational_or_creative"
+    human_approval: false
+    exemplos: ["navegar no dashboard", "trocar cenário de provisionamento"]
+  L1:
+    name: "authorized_read"
+    human_approval: false
+    exemplos: ["consultar processo", "gerar visualização de KPI"]
+  L2:
+    name: "reversible_low_impact"
+    human_approval: false
+    exemplos: ["corrigir mapeamento de coluna", "resolver item da tela de validação"]
+  L3:
+    name: "sensitive_external_effect"
+    human_approval: true
+    exemplos:
+      - "importação mensal de planilha (ADAPTADO — ver README)"
+      - "exportar relatório com dado completo"
+      - "enviar relatório por e-mail"
+  L4:
+    name: "critical_or_irreversible"
+    human_approval: "dual_or_blocked"
+    exemplos:
+      - "apagar snapshot histórico"
+      - "migração destrutiva"
+      - "deploy de produção"
+      - "alterar autenticação/autorização"
+
+data_policy:
+  data_minimization: true
+  tenant_isolation: false # single-tenant; ver carteira_scoping_required
+  carteira_scoping: true
+  pii_masking: true
+  secrets_in_prompt: false
+  secrets_in_logs: false
+  raw_prompt_logging: false
+
+  # PENDENTE DE DECISÃO DE NEGÓCIO (perguntar à Jaquelline).
+  # Os snapshots históricos SÃO o produto (§3.6 da especificação): retenção curta
+  # destruiria o valor. Por isso a política é separada por tipo de dado.
+  retention:
+    snapshots_e_agregados_dias: "indefinido" # proposta: reter enquanto o sistema existir
+    arquivos_xlsx_crus_dias: 90 # proposta: descartar o arquivo original após a ingestão
+    logs_de_auditoria_dias: 365
+    logs_de_aplicacao_dias: 30
+    status: "PENDENTE — confirmar com o Jurídico"
+
+  sensitive_fields:
+    - cpf
+    - cnpj
+    - telefone
+    - email
+    - endereco
+    - placa            # "Placa do Veículo - GGP"
+    - numero_apolice   # "Nº da apólice"
+    - numero_sinistro  # "Nº Sinistro"
+    - motivo_sinistro  # "Motivo do Sinistro GGP"
+    - nome_parte       # Autor / Réu / Todos envolvidos
+    - valor_acordo
+    - valor_condenacao
+    - valor_provisionado
+
+response_policy:
+  allow_abstention: true
+  standard_insufficient_evidence_message: >-
+    Não encontrei informação suficiente nas fontes autorizadas para afirmar isso
+    com segurança.
+  distinguish_fact_inference_assumption: true
+  include_sources: true
+  include_uncertainty: true
+  structured_output_required: true # envelope 09_SCHEMA_RESPOSTA.json na superfície de LLM
+
+# ESCOPO IMPORTANTE: os limites abaixo valem SOMENTE para a superfície de LLM
+# (§3.3 — Sumário Executivo). Não se aplicam à camada de dados do app, que
+# precisa ler ~900 registros e gravar lotes inteiros por importação.
+limits:
+  aplica_se_a: "superficie_llm_apenas"
+  max_tool_calls_per_request: 8
+  max_retries_per_tool: 1
+  max_records_per_read: 100
+  max_records_per_write: 1
+  max_external_recipients_without_batch_approval: 1
+  timeout_seconds: 60
+
+limits_aplicacao:
+  aplica_se_a: "camada_de_dados_do_app"
+  max_linhas_por_planilha: 5000
+  max_abas_por_planilha: 20
+  max_tamanho_upload_mb: 25
+  extensoes_permitidas: [".xlsx"] # .xlsm rejeitado (macro)
+  timeout_ingestao_segundos: 300
+  importacao_requer_idempotency_key: true
+
+incident_policy:
+  prompt_injection: "sanitize_and_log"
+  cross_carteira_attempt: "block_and_alert"
+  secret_exposure_attempt: "block_and_alert"
+  unauthorized_write: "block_and_alert"
+  snapshot_overwrite_attempt: "block_and_alert"
+  repeated_abuse: "rate_limit_or_suspend"

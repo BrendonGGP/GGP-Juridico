@@ -1,0 +1,124 @@
+schema_version: "1.0"
+default_server_decision: "deny"
+
+registry:
+  approved_servers: []
+  require_owner: true
+  require_business_purpose: true
+  require_security_review: true
+  require_license_review: true
+  require_sbom: true
+  require_vulnerability_scan: true
+  require_secret_scan: true
+  require_pinned_version_or_commit: true
+  require_artifact_hash: true
+  automatic_updates: false
+
+trust:
+  tool_descriptions_are_untrusted: true
+  resource_content_is_untrusted: true
+  prompts_from_servers_are_untrusted: true
+  server_change_requires_reapproval: true
+  detect_tool_description_drift: true
+  detect_tool_set_drift: true
+
+transport:
+  allowed:
+    - "https_remote"
+    - "stdio_sandboxed"
+  production_http_requires_https: true
+  localhost_http_only_for_development: true
+  dangerous_url_schemes_rejected:
+    - javascript
+    - data
+    - file
+    - vbscript
+  redirect_validation: "every_hop"
+  shell_used_to_open_urls: false
+
+sandbox:
+  required_for_stdio: true
+  run_as_non_root: true
+  read_only_root_filesystem: true
+  no_host_socket_mount: true
+  no_docker_socket: true
+  filesystem_default: "deny"
+  allowed_filesystem_roots: []
+  network_default: "deny"
+  allowed_egress_domains: []
+  cpu_limit_required: true
+  memory_limit_required: true
+  process_limit_required: true
+  timeout_required: true
+
+identity_and_authorization:
+  oauth_2_1_for_remote_when_applicable: true
+  token_passthrough: false
+  token_audience_validation: true
+  short_lived_tokens: true
+  scopes_minimized: true
+  per_user_identity: true
+  per_tenant_authorization: true
+  record_level_authorization: true
+  secrets_from_environment_or_vault: true
+  secrets_in_config_file: false
+
+consent:
+  explicit_user_consent_for_tool_call: true
+  show_tool_name: true
+  show_server_identity: true
+  show_data_shared: true
+  show_external_effect: true
+  additional_confirmation_for_sensitive_action: true
+
+runtime_limits:
+  max_servers_per_session: 5
+  max_tool_calls_per_request: 8
+  max_parallel_sensitive_calls: 1
+  max_result_bytes: 1000000
+  retry_limit: 1
+  circuit_breaker: true
+
+security_filters:
+  scan_tool_inputs: true
+  scan_tool_outputs: true
+  scan_for_prompt_injection: true
+  redact_pii_and_secrets: true
+  validate_urls: true
+  validate_paths: true
+  validate_mime_types: true
+  reject_executable_content_by_default: true
+
+logging:
+  connection_events: true
+  discovery_events: true
+  tool_list_and_hashes: true
+  calls_and_arguments_redacted: true
+  approvals: true
+  results_redacted: true
+  policy_decisions: true
+  security_alerts: true
+
+incident_response:
+  kill_switch: true
+  revoke_server_credentials: true
+  disable_server_on_drift: true
+  quarantine_on_injection_detection: true
+  preserve_audit_evidence: true
+
+server_template:
+  id: "{{MCP_SERVER_ID}}"
+  owner: "{{OWNER}}"
+  purpose: "{{PURPOSE}}"
+  source_repository: "{{REPOSITORY}}"
+  pinned_commit: "{{COMMIT_SHA}}"
+  artifact_hash: "{{SHA256}}"
+  transport: "stdio_sandboxed"
+  approved_tools: []
+  denied_tools: []
+  allowed_roles: []
+  allowed_tenants: ["current"]
+  allowed_filesystem_roots: []
+  allowed_egress_domains: []
+  credentials_scope: []
+  expires_review_at: "{{REVIEW_DATE}}"

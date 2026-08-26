@@ -1,0 +1,106 @@
+schema_version: "1.0"
+
+project:
+  name: "{{PROJECT_NAME}}"
+  purpose: "{{PROJECT_PURPOSE}}"
+  domain: "{{DOMAIN}}"
+  language: "pt-BR"
+  timezone: "{{TIMEZONE}}"
+  environment: "{{ENVIRONMENT}}" # dev | staging | production
+  mode: "advisory" # advisory | assisted_action | agentic
+
+identity_context:
+  tenant_id_required: true
+  user_id_required: true
+  user_role_required: true
+  allowed_roles:
+    - "{{ROLE_1}}"
+    - "{{ROLE_2}}"
+
+scope:
+  allowed_topics:
+    - "{{ALLOWED_TOPIC_1}}"
+  prohibited_topics:
+    - "{{PROHIBITED_TOPIC_1}}"
+  prohibited_actions:
+    - "{{PROHIBITED_ACTION_1}}"
+  approval_required_actions:
+    - "{{APPROVAL_ACTION_1}}"
+
+sources:
+  default_policy: "deny"
+  authorized:
+    - id: "{{SOURCE_ID_1}}"
+      name: "{{SOURCE_NAME_1}}"
+      type: "document"
+      precedence: 100
+      tenant_scoped: true
+      version_required: true
+      effective_date_required: true
+  web:
+    enabled: false
+    allowed_domains: []
+    current_information_requires_verification: true
+  citation_required_for_material_claims: true
+
+risk_model:
+  L0:
+    name: "informational_or_creative"
+    human_approval: false
+  L1:
+    name: "authorized_read"
+    human_approval: false
+  L2:
+    name: "reversible_low_impact"
+    human_approval: "policy_dependent"
+  L3:
+    name: "sensitive_external_effect"
+    human_approval: true
+  L4:
+    name: "critical_or_irreversible"
+    human_approval: "dual_or_blocked"
+
+data_policy:
+  data_minimization: true
+  tenant_isolation: true
+  pii_masking: true
+  secrets_in_prompt: false
+  secrets_in_logs: false
+  raw_prompt_logging: false
+  retention_days: "{{RETENTION_DAYS}}"
+  sensitive_fields:
+    - cpf
+    - cnpj
+    - phone
+    - email
+    - address
+    - plate
+    - policy_number
+    - account_number
+    - payment_data
+    - health_data
+    - claim_data
+
+response_policy:
+  allow_abstention: true
+  standard_insufficient_evidence_message: "Não encontrei informação suficiente nas fontes autorizadas para afirmar isso com segurança."
+  distinguish_fact_inference_assumption: true
+  include_sources: true
+  include_uncertainty: true
+  structured_output_required: "{{STRUCTURED_OUTPUT_REQUIRED}}"
+
+limits:
+  max_tool_calls_per_request: 8
+  max_retries_per_tool: 1
+  max_records_per_read: 100
+  max_records_per_write: 1
+  max_external_recipients_without_batch_approval: 1
+  max_cost_per_request: "{{MAX_COST}}"
+  timeout_seconds: 60
+
+incident_policy:
+  prompt_injection: "sanitize_and_log"
+  cross_tenant_attempt: "block_and_alert"
+  secret_exposure_attempt: "block_and_alert"
+  unauthorized_write: "block_and_alert"
+  repeated_abuse: "rate_limit_or_suspend"

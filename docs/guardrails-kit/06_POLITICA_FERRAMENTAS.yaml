@@ -1,0 +1,135 @@
+schema_version: "1.0"
+default_decision: "deny"
+
+principles:
+  least_privilege: true
+  fail_closed: true
+  validate_outside_model: true
+  log_all_calls: true
+  tool_results_are_untrusted: true
+  approval_is_server_side: true
+
+execution_context_required:
+  - request_id
+  - authenticated_user_id
+  - authenticated_user_role
+  - tenant_id
+  - environment
+  - policy_version
+
+preflight_checks:
+  - tool_is_allowlisted
+  - user_role_is_allowed
+  - tenant_matches
+  - input_matches_schema
+  - record_level_authorization_passed
+  - rate_limit_passed
+  - volume_limit_passed
+  - destination_allowlisted
+  - no_secret_exfiltration
+  - no_path_traversal
+  - no_shell_or_sql_injection
+  - approval_valid_when_required
+  - idempotency_key_present_for_mutation
+
+postflight_checks:
+  - result_schema_valid
+  - tenant_matches
+  - sensitive_fields_redacted
+  - prompt_injection_scan_passed
+  - side_effect_confirmed
+  - audit_event_written
+
+approval_token:
+  issued_by_model: false
+  signed: true
+  single_use: true
+  short_lived: true
+  binds_user: true
+  binds_tenant: true
+  binds_tool: true
+  binds_exact_arguments_hash: true
+  binds_risk_level: true
+
+# Exemplos. Renomeie e adapte às ferramentas reais.
+tools:
+  search_knowledge:
+    enabled: true
+    effect: "read"
+    risk_level: "L1"
+    allowed_roles: ["{{ROLE_1}}", "{{ROLE_2}}"]
+    allowed_tenants: ["current"]
+    approval_required: false
+    max_calls_per_request: 4
+    max_results: 20
+    allowed_sources: ["{{SOURCE_ID_1}}"]
+    network_egress: "deny_except_source_connector"
+
+  get_record:
+    enabled: true
+    effect: "read"
+    risk_level: "L1"
+    allowed_roles: ["{{ROLE_1}}"]
+    approval_required: false
+    record_level_authorization: true
+    tenant_filter_injected_by_server: true
+    max_records: 10
+
+  create_draft:
+    enabled: true
+    effect: "local_reversible_write"
+    risk_level: "L2"
+    allowed_roles: ["{{ROLE_1}}"]
+    approval_required: false
+    external_side_effect: false
+    idempotency_required: true
+
+  send_external_message:
+    enabled: false
+    effect: "external_write"
+    risk_level: "L3"
+    allowed_roles: ["{{AUTHORIZED_SENDER_ROLE}}"]
+    approval_required: true
+    approval_scope: "exact_recipient_subject_body_hash"
+    max_recipients: 1
+    idempotency_required: true
+    dry_run_required: true
+
+  update_business_record:
+    enabled: false
+    effect: "external_write"
+    risk_level: "L3"
+    allowed_roles: ["{{AUTHORIZED_EDITOR_ROLE}}"]
+    approval_required: true
+    allowed_fields: ["{{ALLOWED_FIELD_1}}"]
+    forbidden_fields: ["status_final", "financial_value", "tenant_id"]
+    optimistic_lock_required: true
+    idempotency_required: true
+
+  delete_record:
+    enabled: false
+    effect: "destructive"
+    risk_level: "L4"
+    allowed_roles: []
+    approval_required: "dual"
+    soft_delete_only: true
+
+  run_code:
+    enabled: false
+    effect: "code_execution"
+    risk_level: "L4"
+    allowed_roles: ["{{DEVELOPER_ROLE}}"]
+    approval_required: true
+    sandbox_required: true
+    network_egress: "deny"
+    filesystem_roots: ["{{TEMP_WORKSPACE}}"]
+    command_allowlist: []
+    shell_interpolation_allowed: false
+
+failure_behavior:
+  authorization_error: "block"
+  schema_error: "block"
+  policy_service_unavailable: "block"
+  approval_service_unavailable: "block"
+  ambiguous_tool_result: "do_not_assume_success"
+  timeout: "do_not_retry_more_than_once"

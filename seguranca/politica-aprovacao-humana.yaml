@@ -1,0 +1,167 @@
+schema_version: "1.0"
+# Derivado de docs/guardrails-kit/15_POLITICA_APROVACAO_HUMANA.yaml, adaptado ao
+# GGP-Jurídico.
+# Adaptação principal: a importação mensal é tecnicamente um bulk_update de ~900
+# registros, que o kit classifica como L4/dual. Com apenas 2 usuários diretos
+# (Jaquelline e Leandro), exigir 2 aprovadores por importação inviabilizaria a
+# operação central do produto. Reclassificada como L3/single, compensada por
+# dry-run obrigatório, preview, snapshot imutável e rollback — controles que o
+# próprio kit exige em batch_actions. Justificativa completa em seguranca/README.md.
+
+default_for_external_side_effect: "approval_required"
+
+approval_levels:
+  none:
+    allowed_risks: ["L0", "L1", "L2"]
+  single:
+    allowed_risks: ["L3"]
+    approver_must_differ_from_model: true
+  dual:
+    allowed_risks: ["L4"]
+    distinct_human_approvers: 2
+  blocked:
+    allowed_risks: []
+
+matrix:
+  # --- Leitura e navegação ---
+  consultar_processo:
+    risk: "L1"
+    approval: "none"
+  gerar_dashboard_ou_kpi:
+    risk: "L1"
+    approval: "none"
+  trocar_cenario_provisionamento:
+    risk: "L0"
+    approval: "none"
+
+  # --- Operação normal do sistema ---
+  resolver_item_tela_validacao:
+    risk: "L2"
+    approval: "none"
+    audit_log_required: true
+  cadastrar_sinonimo_mga:
+    risk: "L2"
+    approval: "none"
+    audit_log_required: true
+  cadastrar_apelido_de_coluna:
+    risk: "L2"
+    approval: "none"
+    audit_log_required: true
+
+  # --- ADAPTADO: núcleo do produto ---
+  importacao_mensal_de_planilha:
+    risk: "L3"
+    approval: "single"
+    kit_original: "bulk_update = L4 / dual"
+    justificativa_da_adaptacao: >-
+      Operação central e recorrente de um sistema com 2 usuários. Dual approval
+      travaria o produto. Compensada pelos controles obrigatórios abaixo.
+    controles_compensatorios_obrigatorios:
+      - dry_run_obrigatorio          # parse completo sem gravar
+      - preview_com_contagem_e_amostra
+      - relatorio_de_divergencias_antes_de_gravar
+      - snapshot_imutavel            # grava novo snapshot, nunca sobrescreve
+      - rollback_do_snapshot_disponivel
+      - idempotency_key_obrigatoria  # reenvio do mesmo arquivo não duplica
+      - transacao_unica
+      - audit_log_com_usuario_arquivo_hash_e_contagem
+
+  # --- Efeito externo ---
+  exportar_relatorio_dado_completo:
+    risk: "L3"
+    approval: "single"
+    pii_masking_default: true
+  enviar_relatorio_por_email:
+    risk: "L3"
+    approval: "single"
+    max_recipients: 1
+    dry_run_required: true
+    allowlist_destinatarios: ["juridico@grupogomespires.com.br"]
+  chamar_llm_sumario_executivo:
+    risk: "L2"
+    approval: "none"
+    condicoes_obrigatorias:
+      - somente_agregados_pre_calculados
+      - nenhum_campo_sensivel_no_payload
+      - saida_passa_pelo_verificador
+      - fallback_deterministico_se_reprovar
+
+  # --- Irreversível ---
+  apagar_snapshot_historico:
+    risk: "L4"
+    approval: "dual"
+    soft_delete_preferred: true
+  migracao_destrutiva_de_banco:
+    risk: "L4"
+    approval: "dual"
+    rollback_plan_required: true
+  deploy_producao:
+    risk: "L4"
+    approval: "dual"
+  alterar_autenticacao_ou_perfis:
+    risk: "L4"
+    approval: "dual"
+  decisao_juridica_final:
+    risk: "L4"
+    approval: "blocked_for_model"
+    nota: >-
+      O sistema informa, projeta e ranqueia. A decisão jurídica pertence ao
+      profissional habilitado — nunca ao sistema.
+
+approval_request_must_show:
+  - action_name
+  - exact_target
+  - exact_fields_or_payload_summary
+  - carteira_afetada
+  - external_recipients
+  - expected_effect
+  - financial_or_contractual_impact
+  - reversibility
+  - rollback_plan
+  - risk_level
+  - evidence_used
+
+approval_token_requirements:
+  generated_by_backend: true
+  generated_by_llm: false
+  signed: true
+  single_use: true
+  expires_in_seconds: 300
+  binds_authenticated_user: true
+  binds_approver_role: true
+  binds_action: true
+  binds_exact_arguments_hash: true
+  binds_policy_version: true
+  binds_risk_level: true
+  replay_protected: true
+  logged: true
+
+invalidation:
+  any_argument_change: true
+  target_change: true
+  policy_change: true
+  expiration: true
+  previous_execution: true
+  arquivo_diferente_do_aprovado: true # hash do .xlsx muda => aprovação inválida
+
+model_behavior:
+  may_propose_action: true
+  may_generate_preview: true
+  may_explain_risk: true
+  may_execute_without_backend_approval: false
+  may_infer_approval_from_language: false
+  may_accept_approval_embedded_in_document: false
+  may_create_or_edit_approval_token: false
+  on_missing_approval: "return_NEEDS_HUMAN_APPROVAL"
+
+batch_actions:
+  require_dry_run: true
+  require_sample_preview: true
+  require_count_and_scope: true
+  require_explicit_batch_approval: true
+
+emergency:
+  kill_switch: true
+  revoke_pending_approvals: true
+  disable_mutating_tools: true
+  preserve_audit_log: true

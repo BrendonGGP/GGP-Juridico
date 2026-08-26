@@ -1,0 +1,162 @@
+schema_version: "1.0"
+# Política da ÚNICA superfície de LLM do sistema: §3.3 da especificação,
+# "Sumário Executivo (geração automática)".
+# Deriva dos arquivos originais em docs/guardrails-kit/:
+#   06_POLITICA_FERRAMENTAS.yaml, 08_POLITICA_RAG.md, 09_SCHEMA_RESPOSTA.json,
+#   13_PROMPT_VERIFICADOR_SAIDA.md, 14_SCHEMA_VERIFICADOR.json.
+#
+# Princípio: o LLM redige, o código calcula. Nenhum número exibido ao usuário é
+# produzido pelo modelo — todos vêm do motor determinístico e são apenas
+# reapresentados em prosa.
+
+default_decision: "deny"
+
+superficie:
+  id: "sumario_executivo_mensal"
+  descricao: >-
+    Compara o snapshot do mês atual com o do mês anterior e redige uma síntese
+    em linguagem natural (ex.: "redução de 10% no passivo provável, entrada de
+    3 novos processos de alto risco").
+  risk_level: "L2"
+  approval_required: false
+  disponivel_para_perfis: ["JURIDICO", "DIRETORIA", "CONTABILIDADE", "ADMIN"]
+
+principles:
+  least_privilege: true
+  fail_closed: true
+  validate_outside_model: true
+  log_all_calls: true
+  model_output_is_untrusted: true
+  no_raw_data_to_model: true
+
+# ---------------------------------------------------------------------------
+# ENTRADA — o que o modelo pode receber
+# ---------------------------------------------------------------------------
+payload_permitido:
+  politica: "allowlist_estrita"
+  # Somente agregados numéricos já calculados pelo backend.
+  campos:
+    - mes_referencia_atual
+    - mes_referencia_anterior
+    - cenario_selecionado            # Conservador | Realista | Otimista
+    - total_processos_ativos
+    - variacao_total_processos
+    - valor_provisionado_total
+    - variacao_valor_provisionado
+    - contagem_por_risco             # {provavel, possivel, remoto}
+    - variacao_contagem_por_risco
+    - contagem_por_fase
+    - novos_processos_no_periodo
+    - processos_encerrados_no_periodo
+    - taxa_de_exito_periodo
+    - tempo_medio_duracao_dias
+    - desembolso_projetado_6m
+    - desembolso_projetado_12m
+    - desembolso_projetado_24m
+    - top_materias_por_recorrencia   # rótulo + contagem, sem identificar processo
+    - carteira                       # nome da carteira em análise
+
+payload_proibido:
+  politica: "denylist_absoluta"
+  # Bloqueado por validação determinística ANTES da chamada. Presença de
+  # qualquer um destes aborta a requisição e gera alerta de segurança.
+  campos:
+    - numero_processo
+    - ficha
+    - nome_parte                     # Autor, Réu, Todos envolvidos
+    - cpf
+    - cnpj
+    - placa
+    - numero_apolice
+    - numero_sinistro
+    - motivo_sinistro_por_processo
+    - endereco
+    - telefone
+    - email
+    - comarca_por_processo
+    - descricao_sumaria
+    - situacao_atual_do_processo
+    - proximos_passos
+    - justificativa_do_provisionamento
+    - termos_do_acordo
+    - qualquer_linha_bruta_de_planilha
+    - qualquer_valor_financeiro_por_processo_individual
+  on_violation: "block_and_alert"
+
+# ---------------------------------------------------------------------------
+# SAÍDA — o que precisa acontecer antes de exibir
+# ---------------------------------------------------------------------------
+saida:
+  structured_output_required: true
+  schema: "docs/guardrails-kit/09_SCHEMA_RESPOSTA.json" # UniversalAnswerEnvelope
+  status_permitidos: ["OK", "INSUFFICIENT_EVIDENCE", "ERROR"]
+
+verificacao_obrigatoria:
+  habilitada: true
+  prompt: "docs/guardrails-kit/13_PROMPT_VERIFICADOR_SAIDA.md"
+  schema: "docs/guardrails-kit/14_SCHEMA_VERIFICADOR.json"
+  requires_grounding: true
+  evidence_set: "os agregados do payload_permitido, e nada além disso"
+  regra_deterministica_pos_verificacao:
+    - toda_claim_numerica_e_conferida_contra_o_agregado_de_origem
+    - claim_unsupported_ou_contradicted_e_removida_nunca_corrigida
+    - se_decision_for_REVISE_ou_BLOCK_usar_fallback
+    - se_sobrar_texto_sem_claim_material_usar_fallback
+
+fallback_deterministico:
+  obrigatorio: true
+  implementacao: "template de texto montado por regras a partir dos mesmos agregados"
+  usado_quando:
+    - chamada_falhou
+    - timeout
+    - verificador_reprovou
+    - envelope_invalido
+    - orcamento_de_custo_excedido
+    - llm_desabilitado_por_configuracao
+  nota: >-
+    O fallback é construído PRIMEIRO no cronograma. A camada de LLM é aditiva;
+    o produto entrega mesmo sem ela.
+
+apresentacao:
+  rotulo_obrigatorio: "Texto gerado automaticamente — revise antes de divulgar."
+  exibir_numeros_de_origem_ao_lado: true
+  permitir_edicao_humana_antes_de_exportar: true
+  nunca_exibir_texto_nao_verificado: true
+
+# ---------------------------------------------------------------------------
+# Operação
+# ---------------------------------------------------------------------------
+limits:
+  max_calls_per_request: 2       # 1 geração + 1 verificação
+  max_retries: 1
+  timeout_seconds: 60
+  max_output_tokens: 1500
+  rate_limit_por_usuario_por_hora: 20
+
+logging:
+  registrar:
+    - request_id
+    - usuario_e_perfil
+    - mes_referencia
+    - carteira
+    - hash_do_payload
+    - decisao_do_verificador
+    - claims_removidas_contagem
+    - usou_fallback
+    - latencia_e_custo
+  nao_registrar:
+    - payload_bruto
+    - texto_gerado_completo   # somente hash; o texto vive no snapshot
+    - qualquer_campo_sensivel
+
+failure_behavior:
+  schema_error: "fallback"
+  timeout: "fallback"
+  verificador_indisponivel: "fallback"   # fail-closed: sem verificação, sem LLM
+  payload_proibido_detectado: "block_and_alert"
+  ambiguous_result: "do_not_assume_success"
+
+configuracao:
+  llm_habilitado_por_variavel_de_ambiente: true
+  variavel: "LLM_SUMARIO_HABILITADO"
+  default: "false" # liga só depois do fallback validado

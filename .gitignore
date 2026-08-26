@@ -1,0 +1,34 @@
+# Secrets
+.env
+.env.*
+!.env.example
+
+# Dados reais — jurídico/financeiro sensível. NUNCA versionar.
+dados-reais/
+*.xlsx
+*.xlsm
+*.csv
+!tests/fixtures/sinteticos/*.xlsx
+
+# Exceção: a skill ui-ux-pro-max é catálogo de design (CSV/JSON públicos, MIT),
+# não dado do cliente. Precisa ser versionada ou quebra para quem clonar.
+!.claude/skills/**
+
+# Documentos da especificação com dado de cliente
+*.docx
+
+# Dependências e build
+node_modules/
+.next/
+out/
+dist/
+coverage/
+
+# Sistema
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Logs
+*.log
+npm-debug.log*
