@@ -23,6 +23,10 @@ node_modules/
 out/
 dist/
 coverage/
+*.tsbuildinfo
+
+# next-env.d.ts fica DE FORA desta lista de propósito: o Next.js o regenera,
+# mas ele precisa estar versionado para o typecheck funcionar num clone limpo.
 
 # Sistema
 .DS_Store
