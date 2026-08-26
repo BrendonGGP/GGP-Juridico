@@ -39,6 +39,12 @@ export type TipoPendencia =
   | 'VALOR_NAO_PARSEAVEL'
   | 'LINHA_SEM_IDENTIFICADOR'
   | 'GERAL_DIVERGENTE'
+  /** Mesmo processo em BAIXADOS e numa aba ativa. REGRA 8. */
+  | 'CONFLITO_BAIXADOS_ATIVA'
+  /** Mesma identidade duas vezes no mesmo upload. */
+  | 'NUMERO_PROCESSO_REPETIDO'
+  /** Acordo cujo processo não existe no Relatório Geral do mesmo mês. */
+  | 'ACORDO_ORFAO'
 
 export interface Pendencia {
   tipo: TipoPendencia
@@ -52,6 +58,14 @@ export interface Pendencia {
 /** Valor de um campo já normalizado. */
 export type ValorCampo = string | number | boolean | Date | Exito | RiscoNormalizado | null
 
+/** Uma parcela de acordo, extraída de um par de colunas de mês. */
+export interface ParcelaLida {
+  /** "2026-07" — o mês a que a parcela se refere, NÃO o mês da importação. */
+  mesReferencia: string
+  dataPagamento: Date | null
+  valor: number
+}
+
 export interface LinhaLida {
   aba: string
   /** 1-based, para casar com o que o usuário vê no Excel. */
@@ -61,6 +75,8 @@ export interface LinhaLida {
   /** REGRA 8: veio da aba BAIXADOS, portanto encerrado. */
   encerrado: boolean
   campos: Partial<Record<CampoLogico, ValorCampo>>
+  /** Parcelas de acordo desta linha (só na planilha de Acordos). */
+  parcelas: ParcelaLida[]
   /** Pendências desta linha. A linha é aproveitada mesmo assim. */
   pendencias: Pendencia[]
 }
@@ -282,6 +298,7 @@ export function lerPlanilha(buffer: Buffer): ResultadoLeitura {
       if (!resultado) continue // linha totalmente vazia
 
       const { campos, pendenciasLinha } = resultado
+      const parcelas = lerParcelas(ws, r, range, colunasMes, nomeAba, pendenciasLinha)
 
       // A última linha da planilha de Acordos é um TOTAL: processo e ficha
       // vazios. Somá-la duplicaria o valor de todos os acordos.
@@ -315,6 +332,7 @@ export function lerPlanilha(buffer: Buffer): ResultadoLeitura {
         carteira,
         encerrado,
         campos,
+        parcelas,
         pendencias: pendenciasLinha,
       })
     }
@@ -331,6 +349,69 @@ export function lerPlanilha(buffer: Buffer): ResultadoLeitura {
     abasLidas,
     mesesDetectados: [...mesesDetectados].sort(),
   }
+}
+
+/**
+ * Extrai as parcelas de acordo de uma linha, a partir dos pares de mês.
+ *
+ * Cada mês vira uma parcela própria, identificada pelo MÊS DE REFERÊNCIA e não
+ * pela ordem da coluna. Isso é o que torna o reenvio mensal seguro: quando a
+ * planilha de agosto reenviar as colunas de maio a dezembro, cada parcela é
+ * reconhecida pelo mesmo mês de referência e ATUALIZA a existente em vez de
+ * criar outra (REGRA 4).
+ *
+ * Parcela sem valor é ignorada: mês futuro ainda não preenchido é o caso
+ * normal, não uma falha.
+ */
+function lerParcelas(
+  ws: XLSX.WorkSheet,
+  r: number,
+  range: XLSX.Range,
+  colunasMes: ColunaMes[],
+  nomeAba: string,
+  pendenciasLinha: Pendencia[]
+): ParcelaLida[] {
+  if (!colunasMes.length) return []
+
+  const porMes = new Map<string, { data?: unknown; valor?: unknown }>()
+  for (const cm of colunasMes) {
+    const cel = ws[XLSX.utils.encode_cell({ r, c: range.s.c + cm.indice })]
+    const atual = porMes.get(cm.mesReferencia) ?? {}
+    atual[cm.tipo === 'data' ? 'data' : 'valor'] = cel ? cel.v : undefined
+    porMes.set(cm.mesReferencia, atual)
+  }
+
+  const parcelas: ParcelaLida[] = []
+  for (const [mesReferencia, par] of porMes) {
+    const v = parseNumero(par.valor)
+    if (v.motivo) {
+      pendenciasLinha.push({
+        tipo: 'VALOR_NAO_PARSEAVEL',
+        aba: nomeAba,
+        linha: r + 1,
+        campo: `parcela ${mesReferencia}`,
+        detalhe: v.motivo,
+      })
+      continue
+    }
+    // Mês sem valor é mês ainda não pago/previsto — não é parcela.
+    if (v.valor === null || v.valor === 0) continue
+
+    const d = parseData(par.data)
+    if (d.motivo) {
+      pendenciasLinha.push({
+        tipo: 'VALOR_NAO_PARSEAVEL',
+        aba: nomeAba,
+        linha: r + 1,
+        campo: `data da parcela ${mesReferencia}`,
+        detalhe: d.motivo,
+      })
+    }
+
+    parcelas.push({ mesReferencia, dataPagamento: d.valor, valor: v.valor })
+  }
+
+  return parcelas.sort((a, b) => a.mesReferencia.localeCompare(b.mesReferencia))
 }
 
 function lerLinha(

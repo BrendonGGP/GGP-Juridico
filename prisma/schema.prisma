@@ -223,6 +223,14 @@ enum PoloCliente {
 /// chave: numa troca de escritório, todo o histórico perderia o vínculo.
 model Processo {
   id             String  @id @default(cuid())
+
+  /// Chave de IDENTIDADE entre importações — o que permite reencontrar, no
+  /// mês seguinte, o mesmo processo e manter o histórico ligado.
+  /// Derivada da ficha (ou do numeroProcesso, quando não há ficha) por
+  /// lib/ingestao/consolidar.ts. NÃO é a chave técnica: esta continua sendo
+  /// o `id` acima, gerado pelo sistema.
+  chaveIdentidade String @unique
+
   numeroProcesso String?
   fichaExterna   String?
   clienteId      String?
