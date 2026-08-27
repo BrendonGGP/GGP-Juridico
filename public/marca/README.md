@@ -4,43 +4,51 @@ Arte oficial do Grupo Gomes Pires, usada por `components/marca/Logo.tsx`.
 
 ## Arquivos
 
-| Arquivo | O que é | Onde aparece |
-|---|---|---|
-| `ggp-completo.png` | "GGP" + "GRUPO GOMES PIRES" | Sidebar, tela de login |
-| `ggp-simbolo.png`  | Só o "P" com o traço horizontal | Favicon |
+| Arquivo | Cor dos "G" | Usar sobre | Onde aparece hoje |
+|---|---|---|---|
+| `ggp-escuro.png` | Grafite | Fundo **claro** | Sidebar, login, favicon |
+| `ggp-claro.png`  | Branco  | Fundo **escuro** | Reserva |
 
-Ambos: 4800×4800, RGBA, fundo transparente.
+Ambos: 4800×4800 de moldura, RGBA, fundo transparente.
 
-## Sobre o formato e o tamanho
+## A variante é escolhida pelo fundo, não pelo tamanho
 
-São PNG. Funcionam bem porque têm resolução de sobra — o uso maior é 140px
-na tela de login, contra 4800px de original. O Next redimensiona e serve em
-WebP/AVIF automaticamente, então o peso do arquivo original não chega ao
-navegador.
+Nome de arquivo por tamanho ("completo", "símbolo") não descreve o que
+diferencia estas duas artes — elas têm o **mesmo desenho**, mudando só a cor
+das letras. Por isso os nomes dizem para que fundo cada uma serve.
 
-Se um dia houver **SVG oficial**, vale trocar: fica nítido em qualquer
-ampliação e é melhor na impressão do Relatório Executivo, que é vetorial.
-Para trocar, basta substituir a extensão em `ARQUIVO` no componente e em
-`tests/marca.test.ts`.
+**Errar isso faz o logo sumir sem erro visível:** os "G" brancos sobre fundo
+claro desaparecem e sobra só o "P" teal, que parece um símbolo isolado de
+propósito em vez de um defeito. Já aconteceu; `tests/marca.test.ts` agora
+mede a luminância das letras para impedir a repetição.
 
-## A arte é quadrada, com margem embutida
+## O desenho é 2:1, a moldura é quadrada
 
-O logo vem centralizado num quadro quadrado, com bastante espaço em volta.
-Por isso `altura` no componente se refere ao QUADRO, não ao lettering: em
-44px de quadro, a marca em si ocupa por volta de 30px. É o motivo de os
-valores de uso parecerem grandes.
+O arquivo é 4800×4800, mas o logo ocupa só a faixa central (~3952×1950).
+Tratar o arquivo como quadrado **estica o desenho**. O componente usa a
+proporção real (2,03) e `height: auto`.
 
-Essa margem também já entrega parte da área de proteção que o manual exige.
+No componente, `altura` é a do **desenho**, não da moldura.
+
+## O que ainda falta
+
+**Símbolo isolado** (só o "P" com o traço) para o favicon. Hoje o favicon usa
+a marca completa, que em 16px fica ilegível. Se for possível exportar essa
+variante, adicione como `ggp-simbolo.png` e ajuste `icons` em
+`app/layout.tsx`.
+
+**SVG oficial**, se houver. Fica nítido em qualquer ampliação e é melhor na
+impressão do Relatório Executivo, que é vetorial. Para trocar, basta mudar a
+extensão em `ARQUIVO` no componente e em `tests/marca.test.ts`.
 
 ## Regras do manual que já estão atendidas
 
-- **O texto inferior segue a cor dos "G".** Como a arte oficial traz o texto
-  embutido, a regra não pode mais ser violada por engano no código.
+- **O texto inferior segue a cor dos "G".** Vem embutido na arte oficial,
+  então não pode ser violado por engano no código.
 - **Área de proteção.** Complementada por `--logo-respiro` em
   `app/globals.css`.
 
 ## Não versionar variação improvisada
 
-Recolorir, esticar ou recortar o logo em código viola o manual. Se for
-preciso outra variante (fundo escuro, monocromática), peça o arquivo ao
-responsável pela marca e adicione aqui como um novo arquivo.
+Recolorir, esticar ou recortar o logo em código viola o manual. Se precisar
+de outra variante, peça o arquivo ao responsável pela marca.

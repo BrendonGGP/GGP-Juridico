@@ -48,7 +48,7 @@ export function Sidebar() {
         className="flex items-center gap-3 border-b border-borda"
         style={{ padding: 'calc(var(--logo-respiro) * 1.5) var(--logo-respiro)' }}
       >
-        <Logo altura={44} />
+        <Logo fundo="claro" altura={26} />
         <span className="text-sm font-semibold tracking-tight text-texto">Jurídico</span>
       </div>
 
