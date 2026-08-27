@@ -29,7 +29,7 @@ export default function LoginPage() {
         <PainelMarca className="pointer-events-none absolute inset-0 h-full w-full text-primaria" />
 
         <div className="relative">
-          <Logo corG="var(--ggp-grafite)" corP="var(--ggp-teal)" comTipo className="scale-125 origin-left" />
+          <Logo altura={140} prioridade />
 
           <h1 className="mt-10 text-4xl font-bold tracking-tight text-texto sm:text-5xl">
             Bem-vindo.

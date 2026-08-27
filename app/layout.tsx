@@ -17,6 +17,8 @@ const ggpSans = Poppins({
 export const metadata: Metadata = {
   title: 'GGP-Jurídico',
   description: 'Sistema de Gestão e Indicadores do Jurídico — Grupo Gomes Pires',
+  // O símbolo isolado, não a marca completa: em 16px o lettering vira borrão.
+  icons: { icon: '/marca/ggp-simbolo.png' },
 }
 
 export default function RootLayout({ children }: LayoutProps<'/'>) {

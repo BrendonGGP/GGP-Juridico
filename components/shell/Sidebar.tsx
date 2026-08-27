@@ -45,10 +45,11 @@ export function Sidebar() {
       className="flex w-full shrink-0 flex-col border-b border-borda bg-superficie md:h-dvh md:w-60 md:border-r md:border-b-0"
     >
       <div
-        className="flex items-center border-b border-borda"
+        className="flex items-center gap-3 border-b border-borda"
         style={{ padding: 'calc(var(--logo-respiro) * 1.5) var(--logo-respiro)' }}
       >
-        <Logo corG="var(--ggp-grafite)" corP="var(--ggp-teal)" comTipo />
+        <Logo altura={44} />
+        <span className="text-sm font-semibold tracking-tight text-texto">Jurídico</span>
       </div>
 
       <ul className="flex flex-1 gap-1 overflow-x-auto p-3 md:flex-col md:overflow-visible">
