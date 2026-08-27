@@ -9,8 +9,7 @@
  *
  * Uso: node --experimental-strip-types scripts/testar-calculos.ts
  */
-import * as fs from 'node:fs'
-import * as path from 'node:path'
+import { carregar } from './_selecionar-arquivos.ts'
 import { lerPlanilha } from '../lib/ingestao/ler-planilha.ts'
 import { consolidar, mesclarAcordos } from '../lib/ingestao/consolidar.ts'
 import { calcularTodosCenarios, CENARIOS, ROTULO_CENARIO } from '../lib/calculo/cenarios.ts'
@@ -24,17 +23,29 @@ import {
   calcularConcentracaoMga,
 } from '../lib/calculo/kpis.ts'
 
-const DIR = path.join(process.cwd(), 'dados-reais')
-const arquivos = fs.readdirSync(DIR).filter(f => f.endsWith('.xlsx'))
+const MES = process.argv[2] ?? '2026-07'
 const brl = (n: number) =>
   n.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 })
 
-const lidoGeral = lerPlanilha(fs.readFileSync(path.join(DIR, arquivos.find(f => f.includes('JULHO'))!)))
+// Seleção explícita: ambiguidade entre versões vira erro, não escolha silenciosa.
+const fGeral = carregar('GERAL', MES)
+const fAcordos = carregar('ACORDOS', MES)
+console.log('ARQUIVOS USADOS')
+console.log(`  Geral:   ${fGeral.arquivo.nome}`)
+console.log(`  Acordos: ${fAcordos.arquivo.nome}`)
+
+const lidoGeral = lerPlanilha(fGeral.conteudo)
 const consGeral = consolidar(lidoGeral.linhas)
-const lidoAcordos = lerPlanilha(
-  fs.readFileSync(path.join(DIR, arquivos.find(f => f.toUpperCase().includes('ACORDOS'))!))
-)
-const { registros } = mesclarAcordos(consGeral.registros, consolidar(lidoAcordos.linhas).registros)
+const lidoAcordos = lerPlanilha(fAcordos.conteudo)
+const consAcordos = consolidar(lidoAcordos.linhas)
+const { registros, orfaos } = mesclarAcordos(consGeral.registros, consAcordos.registros)
+
+if (lidoGeral.pendencias.length) {
+  console.log('\nPENDÊNCIAS DE ESTRUTURA NO RELATÓRIO GERAL:')
+  for (const p of lidoGeral.pendencias) console.log(`  [${p.tipo}] ${p.detalhe.slice(0, 140)}`)
+}
+console.log(`\nACORDOS: ${consAcordos.registros.length} registros, ${orfaos.length} órfão(s)`)
+for (const o of orfaos) console.log(`  órfão: ficha ${o.ficha ?? '(sem)'} — linha ${o.origem.linha}`)
 
 const n = (v: unknown) => (typeof v === 'number' ? v : null)
 const s = (v: unknown) => (typeof v === 'string' && v !== '' ? v : null)

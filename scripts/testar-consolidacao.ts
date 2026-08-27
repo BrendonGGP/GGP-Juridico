@@ -5,19 +5,16 @@
  *
  * Uso: node --experimental-strip-types scripts/testar-consolidacao.ts
  */
-import * as fs from 'node:fs'
-import * as path from 'node:path'
+import { carregar } from './_selecionar-arquivos.ts'
 import { lerPlanilha } from '../lib/ingestao/ler-planilha.ts'
 import { consolidar, mesclarAcordos } from '../lib/ingestao/consolidar.ts'
 
-const DIR = path.join(process.cwd(), 'dados-reais')
-const arquivos = fs.readdirSync(DIR).filter(f => f.endsWith('.xlsx'))
+const MES = process.argv[2] ?? '2026-07'
+const fGeral = carregar('GERAL', MES)
+const fAcordos = carregar('ACORDOS', MES)
 
-const geralJulho = arquivos.find(f => f.includes('JULHO'))!
-const acordos = arquivos.find(f => f.toUpperCase().includes('ACORDOS'))!
-
-console.log('RELATÓRIO GERAL —', geralJulho)
-const lidoGeral = lerPlanilha(fs.readFileSync(path.join(DIR, geralJulho)))
+console.log('RELATÓRIO GERAL —', fGeral.arquivo.nome)
+const lidoGeral = lerPlanilha(fGeral.conteudo)
 const consGeral = consolidar(lidoGeral.linhas)
 
 console.log(`  linhas lidas:        ${lidoGeral.linhas.length}`)
@@ -35,8 +32,8 @@ const idpj = consGeral.reconciliacao.filter(r => r.explicadoPorIdpj).length
 console.log(`    explicados por IDPJ (legítimo):  ${idpj}`)
 console.log(`    exigem revisão humana:           ${consGeral.reconciliacao.length - idpj}`)
 
-console.log('\nACORDOS —', acordos)
-const lidoAcordos = lerPlanilha(fs.readFileSync(path.join(DIR, acordos)))
+console.log('\nACORDOS —', fAcordos.arquivo.nome)
+const lidoAcordos = lerPlanilha(fAcordos.conteudo)
 const consAcordos = consolidar(lidoAcordos.linhas)
 console.log(`  registros:           ${consAcordos.registros.length}`)
 const comParcela = consAcordos.registros.filter(r => r.parcelas.length > 0)
