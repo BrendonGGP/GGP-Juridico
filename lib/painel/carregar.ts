@@ -19,6 +19,15 @@
 
 import { prisma } from '../db.ts'
 import { calcularTodosCenarios, type Cenario } from '../calculo/cenarios.ts'
+
+/**
+ * Cliente do banco usado nas leituras.
+ *
+ * Existe como parâmetro para que uma verificação possa passar o cliente de
+ * uma transação e ler o que ela gravou antes de desfazê-la. Em produção
+ * nunca é informado: usa o singleton.
+ */
+type ClienteLeitura = Pick<typeof prisma, 'importacao' | 'processoSnapshot' | 'parcelaAcordo'>
 import { calcularProjecao } from '../calculo/projecao.ts'
 import { calcularTop } from '../calculo/top-processos.ts'
 import {
@@ -53,9 +62,10 @@ export interface ImportacaoVigente {
  * confundir dado velho com dado atual.
  */
 export async function importacaoVigente(
-  mesReferencia?: string
+  mesReferencia?: string,
+  db: ClienteLeitura = prisma
 ): Promise<ImportacaoVigente | null> {
-  const imp = await prisma.importacao.findFirst({
+  const imp = await db.importacao.findFirst({
     where: {
       status: { in: ['CONCLUIDA', 'CONCLUIDA_COM_PENDENCIAS'] },
       ...(mesReferencia ? { mesReferencia } : {}),
@@ -73,8 +83,8 @@ export async function importacaoVigente(
 }
 
 /** Meses disponíveis, do mais recente para o mais antigo. */
-export async function mesesDisponiveis(): Promise<string[]> {
-  const linhas = await prisma.importacao.findMany({
+export async function mesesDisponiveis(db: ClienteLeitura = prisma): Promise<string[]> {
+  const linhas = await db.importacao.findMany({
     where: { status: { in: ['CONCLUIDA', 'CONCLUIDA_COM_PENDENCIAS'] } },
     select: { mesReferencia: true },
     distinct: ['mesReferencia'],
@@ -103,11 +113,14 @@ export interface DadosPainel {
  * legítimo de sistema recém-instalado, que as telas tratam com uma mensagem
  * em vez de um painel de zeros.
  */
-export async function carregarPainel(mesReferencia?: string): Promise<DadosPainel | null> {
-  const importacao = await importacaoVigente(mesReferencia)
+export async function carregarPainel(
+  mesReferencia?: string,
+  db: ClienteLeitura = prisma
+): Promise<DadosPainel | null> {
+  const importacao = await importacaoVigente(mesReferencia, db)
   if (!importacao) return null
 
-  const snapshots = await prisma.processoSnapshot.findMany({
+  const snapshots = await db.processoSnapshot.findMany({
     where: { importacaoId: importacao.id },
     select: {
       processoId: true,
@@ -132,7 +145,7 @@ export async function carregarPainel(mesReferencia?: string): Promise<DadosPaine
 
   // As parcelas vivem por processo, não por importação — uma parcela de
   // setembro enviada em julho continua valendo em agosto (REGRA 4, UPSERT).
-  const parcelas = await prisma.parcelaAcordo.findMany({
+  const parcelas = await db.parcelaAcordo.findMany({
     where: { processo: { snapshots: { some: { importacaoId: importacao.id } } } },
     select: { mesReferencia: true, valorParcela: true },
   })

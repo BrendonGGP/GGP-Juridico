@@ -1,0 +1,85 @@
+import { Suspense } from 'react'
+import { carregarPainel } from '@/lib/painel/carregar'
+import { Pagina } from '@/components/shell/Pagina'
+import { SemDados } from '@/components/shell/SemDados'
+import { inteiro } from '@/components/dados/Numero'
+import { PainelComUrl } from './Painel'
+
+/**
+ * Dashboard — exploração de um cenário por vez.
+ *
+ * Diferente da Visão Executiva, que mostra os três lado a lado: aqui a
+ * pergunta é "como este cenário se decompõe", e para isso um cenário por vez
+ * é mais legível.
+ *
+ * O servidor calcula os três e entrega tudo; o cliente só escolhe qual
+ * exibir. Trocar de cenário não custa uma ida ao banco.
+ */
+
+export const dynamic = 'force-dynamic'
+
+const NOMES_MES = [
+  'janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho',
+  'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro',
+]
+
+function mesPorExtenso(mes: string): string {
+  const [ano, m] = mes.split('-')
+  const nome = NOMES_MES[Number(m) - 1]
+  return nome ? `${nome} de ${ano}` : mes
+}
+
+export default async function DashboardPage() {
+  const dados = await carregarPainel()
+
+  if (!dados) {
+    return (
+      <Pagina titulo="Dashboard">
+        <SemDados />
+      </Pagina>
+    )
+  }
+
+  return (
+    <Pagina
+      titulo="Dashboard"
+      descricao={`Base de ${mesPorExtenso(dados.importacao.mesReferencia)} · ${inteiro(dados.totalProcessos)} processos`}
+    >
+      {/* useSearchParams exige limite de Suspense no App Router. */}
+      <Suspense fallback={<CarregandoPainel />}>
+        <PainelComUrl
+          dados={{
+            mesReferencia: dados.importacao.mesReferencia,
+            totalProcessos: dados.totalProcessos,
+            cenarios: {
+              CONSERVADOR: dados.cenarios.CONSERVADOR,
+              REALISTA: dados.cenarios.REALISTA,
+              OTIMISTA: dados.cenarios.OTIMISTA,
+            },
+            projecao: {
+              serie: dados.projecao.serie,
+              horizontes: dados.projecao.horizontes,
+              ultimoMesComDados: dados.projecao.ultimoMesComDados,
+            },
+            recorrencia: dados.recorrencia,
+            mga: dados.mga,
+            exito: { percentual: dados.exito.percentual },
+            tempo: { dias: dados.tempo.dias, medianaDias: dados.tempo.medianaDias },
+          }}
+        />
+      </Suspense>
+    </Pagina>
+  )
+}
+
+function CarregandoPainel() {
+  return (
+    <div
+      role="status"
+      aria-live="polite"
+      className="rounded-ggp border border-borda bg-superficie p-10 text-center text-sm text-texto-suave"
+    >
+      Carregando indicadores…
+    </div>
+  )
+}

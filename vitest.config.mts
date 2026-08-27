@@ -9,7 +9,9 @@ export default defineConfig({
     },
   },
   test: {
-    include: ['tests/**/*.test.ts'],
+    // .tsx entra porque as telas também são verificadas (renderização com
+    // dados reais, ver tests/telas.test.tsx).
+    include: ['tests/**/*.test.ts', 'tests/**/*.test.tsx'],
     environment: 'node',
     coverage: {
       provider: 'v8',
