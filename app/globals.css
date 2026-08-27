@@ -1,26 +1,145 @@
 @import "tailwindcss";
 
+/* ---------------------------------------------------------------------------
+ * Tokens visuais — GGP-Jurídico
+ *
+ * Cores vêm do manual de marca do Grupo Gomes Pires. Os cinco hex oficiais são
+ * usados literalmente; as variações existem só onde o hex oficial não alcança
+ * contraste suficiente para o papel.
+ *
+ * Contraste medido (WCAG 2.1), não estimado:
+ *   #00819c sobre #ffffff .......... 4.55:1  AA  (botão, texto sobre branco)
+ *   #00819c sobre #f6f8f9 .......... 4.27:1  falha AA para texto normal
+ *   #00637a sobre #ffffff .......... 6.85:1  AA  (texto sobre superfície tingida)
+ *   #65e7de sobre #ffffff .......... 1.50:1  NUNCA como texto em fundo claro
+ *   #1a1a1a sobre #65e7de ......... 11.63:1  AA  (é assim que o ciano se usa)
+ *   #595959 sobre #ffffff .......... 7.00:1  AA  (texto secundário)
+ *
+ * Tema claro, decidido pela referência de layout e porque o Relatório
+ * Executivo é impresso e exportado em PDF pela Diretoria.
+ * ------------------------------------------------------------------------- */
+
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  /* --- Marca (hex oficiais do manual) --- */
+  --ggp-teal: #00819c;
+  --ggp-ciano: #65e7de;
+  --ggp-grafite: #1a1a1a;
+  --ggp-cinza: #595959;
+  --ggp-branco: #ffffff;
+
+  /* --- Papéis semânticos --- */
+  --cor-primaria: var(--ggp-teal);
+  --cor-sobre-primaria: var(--ggp-branco);
+  /* Teal escurecido: usado APENAS quando é texto sobre superfície tingida,
+     onde o hex oficial cai para 4.27:1. */
+  --cor-primaria-texto: #00637a;
+  --cor-primaria-suave: #e6f2f5;
+
+  --cor-acento: var(--ggp-ciano);
+  --cor-sobre-acento: var(--ggp-grafite);
+
+  --cor-fundo: #f6f8f9;
+  --cor-superficie: var(--ggp-branco);
+  --cor-texto: var(--ggp-grafite);
+  --cor-texto-suave: var(--ggp-cinza);
+  --cor-borda: #e3e8ea;
+  --cor-borda-forte: #c9d2d6;
+
+  /* --- Risco: cor + rótulo, nunca cor sozinha (REGRA de acessibilidade) ---
+     Tons sóbrios em vez do verde/vermelho saturado da referência, para
+     conviver com a paleta e com o "sóbrio, elegante" do manual.
+     Todos ≥ 4.5:1 sobre o seu próprio fundo. */
+  --risco-provavel-texto: #8a2b20;
+  --risco-provavel-fundo: #fbecea;
+  --risco-provavel-borda: #e5bdb7;
+
+  --risco-possivel-texto: #7a5312;
+  --risco-possivel-fundo: #fdf3e2;
+  --risco-possivel-borda: #e8d3ab;
+
+  --risco-remoto-texto: #2f5c3f;
+  --risco-remoto-fundo: #eaf3ed;
+  --risco-remoto-borda: #bcd6c5;
+
+  --cor-atencao-texto: #7a5312;
+  --cor-atencao-fundo: #fdf3e2;
+  --cor-erro-texto: #8a2b20;
+  --cor-erro-fundo: #fbecea;
+
+  /* --- Geometria --- */
+  --raio: 0.5rem;
+  --raio-sm: 0.375rem;
+  --raio-pill: 9999px;
+  --sombra-cartao: 0 1px 2px rgb(26 26 26 / 0.04), 0 1px 3px rgb(26 26 26 / 0.06);
+  --sombra-elevada: 0 4px 12px rgb(26 26 26 / 0.08);
+
+  /* Área de proteção do logo — 50px no manual, proporcional aqui. */
+  --logo-respiro: 0.75rem;
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
+  --color-primaria: var(--cor-primaria);
+  --color-sobre-primaria: var(--cor-sobre-primaria);
+  --color-primaria-texto: var(--cor-primaria-texto);
+  --color-primaria-suave: var(--cor-primaria-suave);
+  --color-acento: var(--cor-acento);
+  --color-sobre-acento: var(--cor-sobre-acento);
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+  --color-fundo: var(--cor-fundo);
+  --color-superficie: var(--cor-superficie);
+  --color-texto: var(--cor-texto);
+  --color-texto-suave: var(--cor-texto-suave);
+  --color-borda: var(--cor-borda);
+  --color-borda-forte: var(--cor-borda-forte);
+
+  --color-atencao-texto: var(--cor-atencao-texto);
+  --color-atencao-fundo: var(--cor-atencao-fundo);
+  --color-erro-texto: var(--cor-erro-texto);
+  --color-erro-fundo: var(--cor-erro-fundo);
+
+  --radius-ggp: var(--raio);
+  --radius-ggp-sm: var(--raio-sm);
+  --shadow-cartao: var(--sombra-cartao);
+  --shadow-elevada: var(--sombra-elevada);
+
+  --font-sans: var(--font-ggp-sans);
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--cor-fundo);
+  color: var(--cor-texto);
+}
+
+/* Foco sempre visível — a referência não mostra, mas o teclado é requisito. */
+:focus-visible {
+  outline: 2px solid var(--cor-primaria-texto);
+  outline-offset: 2px;
+  border-radius: var(--raio-sm);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* O relatório é impresso. Cartões viram blocos planos e a navegação some. */
+@media print {
+  :root {
+    --cor-fundo: #ffffff;
+    --sombra-cartao: none;
+    --sombra-elevada: none;
+  }
+
+  [data-print="ocultar"] {
+    display: none !important;
+  }
+
+  main {
+    padding: 0 !important;
+  }
 }

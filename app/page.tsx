@@ -1,69 +1,185 @@
-import Image from "next/image";
+import { carregarPainel } from '@/lib/painel/carregar'
+import { Pagina, Cartao } from '@/components/shell/Pagina'
+import { SemDados } from '@/components/shell/SemDados'
+import { CartaoValor, CartaoIndicador, brl, inteiro } from '@/components/dados/Numero'
+import { ExplicacaoCenario } from '@/components/dados/SeletorCenario'
+import { ROTULO_CENARIO, CENARIOS } from '@/lib/calculo/cenarios'
+import { IconeAtencao } from '@/components/icones'
 
-export default function Home() {
+/**
+ * Visão Executiva — a tela de abertura.
+ *
+ * Mostra o passivo nos três cenários lado a lado, em vez de um número único
+ * com seletor. A Diretoria decide olhando o intervalo; esconder dois terços
+ * dele atrás de um controle transformaria uma faixa de incerteza numa falsa
+ * precisão. O seletor existe no Dashboard, onde se explora um cenário por vez.
+ */
+
+// Os números vêm do banco a cada requisição — nunca de cache estático.
+export const dynamic = 'force-dynamic'
+
+const NOMES_MES = [
+  'janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho',
+  'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro',
+]
+
+function mesPorExtenso(mes: string): string {
+  const [ano, m] = mes.split('-')
+  const nome = NOMES_MES[Number(m) - 1]
+  return nome ? `${nome} de ${ano}` : mes
+}
+
+export default async function VisaoExecutivaPage() {
+  const dados = await carregarPainel()
+
+  if (!dados) {
+    return (
+      <Pagina titulo="Visão Executiva">
+        <SemDados />
+      </Pagina>
+    )
+  }
+
+  const { importacao, totalProcessos, cenarios, projecao, exito, tempo, top } = dados
+  const realista = cenarios.REALISTA
+
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert h-5 w-[100px]"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the{" "}
-            <code className="rounded bg-black/[.06] px-1.5 py-0.5 font-mono text-[0.9em] dark:bg-white/[.08]">
-              page.tsx
-            </code>{" "}
-            file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
+    <Pagina
+      titulo="Visão Executiva"
+      descricao={`Base de ${mesPorExtenso(importacao.mesReferencia)} · ${inteiro(totalProcessos)} processos`}
+    >
+      <div className="space-y-6">
+        <Cartao
+          titulo="Provisionamento de risco"
+          descricao="Os três cenários sobre a mesma carteira. O intervalo é a informação."
+        >
+          <div className="grid gap-4 sm:grid-cols-3">
+            {CENARIOS.map(c => (
+              <CartaoValor
+                key={c}
+                rotulo={ROTULO_CENARIO[c]}
+                valor={brl(cenarios[c].totalProvisionado)}
+                destaque={c === 'REALISTA'}
+                nota={`${inteiro(cenarios[c].totalCasos)} processos considerados`}
+              />
+            ))}
+          </div>
+
+          <div className="mt-4 border-t border-borda pt-4">
+            <ExplicacaoCenario cenario="REALISTA" />
+          </div>
+
+          <ForaDaConta
+            excluidos={realista.excluidos}
+            considerados={realista.totalCasos}
+            total={totalProcessos}
+          />
+        </Cartao>
+
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <CartaoValor
+            rotulo="Desembolso projetado — 12 meses"
+            valor={brl(projecao.horizontes[12].total)}
+            nota={
+              projecao.horizontes[12].incompleto
+                ? `dados até ${projecao.ultimoMesComDados ?? '—'}`
+                : `${projecao.horizontes[12].mesesComDados} meses com parcela`
+            }
+          />
+          <CartaoIndicador
+            rotulo="Taxa de êxito"
+            indicador={exito.percentual}
+            formatar={n => n.toFixed(1)}
+            sufixo="%"
+            descricaoBase={b => `${inteiro(b)} processos com sentença`}
+          />
+          <CartaoIndicador
+            rotulo="Tempo médio de tramitação"
+            indicador={tempo.dias}
+            formatar={n => inteiro(Math.round(n))}
+            sufixo=" dias"
+            descricaoBase={b => `mediana ${tempo.medianaDias ?? '—'} · base ${inteiro(b)}`}
+          />
+          <CartaoValor
+            rotulo="Processos em acompanhamento"
+            valor={inteiro(top.trabalhistaEIdpj.length)}
+            nota="Trabalhista e IDPJ, sem limite"
+          />
         </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert h-[14px] w-4"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={14}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
-      </main>
+
+        <Cartao titulo="Procedência">
+          <dl className="grid gap-x-6 gap-y-3 text-sm sm:grid-cols-2">
+            <ItemProcedencia rotulo="Mês de referência">
+              {mesPorExtenso(importacao.mesReferencia)}
+            </ItemProcedencia>
+            <ItemProcedencia rotulo="Importado em">
+              {importacao.concluidaEm
+                ? importacao.concluidaEm.toLocaleString('pt-BR', {
+                    dateStyle: 'short',
+                    timeStyle: 'short',
+                  })
+                : '—'}
+            </ItemProcedencia>
+            <ItemProcedencia rotulo="Arquivo de origem">
+              {importacao.arquivoGeralNome ?? '—'}
+            </ItemProcedencia>
+            <ItemProcedencia rotulo="Pendências registradas">
+              {inteiro(importacao.totalPendencias)}
+            </ItemProcedencia>
+          </dl>
+        </Cartao>
+      </div>
+    </Pagina>
+  )
+}
+
+function ItemProcedencia({
+  rotulo,
+  children,
+}: {
+  rotulo: string
+  children: React.ReactNode
+}) {
+  return (
+    <div className="flex justify-between gap-4 border-b border-borda pb-2 last:border-0 sm:last:border-b">
+      <dt className="text-texto-suave">{rotulo}</dt>
+      <dd className="text-right font-medium">{children}</dd>
     </div>
-  );
+  )
+}
+
+/**
+ * O que ficou de fora do provisionamento.
+ *
+ * O motor devolve os excluídos contados por motivo justamente para que este
+ * bloco exista. Um passivo menor por falta de dado é pior que um passivo com
+ * ressalva declarada — então a ressalva fica na tela, não no rodapé.
+ */
+function ForaDaConta({
+  excluidos,
+  considerados,
+  total,
+}: {
+  excluidos: { encerrados: number; semRisco: number; semValor: number }
+  considerados: number
+  total: number
+}) {
+  const fora = total - considerados
+  if (fora <= 0) return null
+
+  return (
+    <div className="mt-4 flex gap-3 rounded-ggp-sm bg-atencao-fundo p-3 text-sm text-atencao-texto">
+      <IconeAtencao className="mt-0.5 shrink-0" />
+      <div>
+        <p className="font-medium">
+          {inteiro(fora)} de {inteiro(total)} processos ficaram fora do cálculo
+        </p>
+        <p className="mt-1">
+          {inteiro(excluidos.encerrados)} encerrados · {inteiro(excluidos.semRisco)} sem
+          classificação de risco · {inteiro(excluidos.semValor)} sem valor provisionado.
+          Nenhum deles foi somado como zero.
+        </p>
+      </div>
+    </div>
+  )
 }
