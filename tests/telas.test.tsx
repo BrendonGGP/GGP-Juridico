@@ -144,13 +144,43 @@ const norm = (s: string) => s.replace(/\s/g, ' ')
 const brl = (v: number) =>
   v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 })
 
+/**
+ * Monta uma vez e reaproveita.
+ *
+ * `describe.skipIf` pula a EXECUÇÃO dos testes, mas o Vitest ainda avalia o
+ * corpo do describe para descobrir quais testes existem. Ler as planilhas ali
+ * quebrava o CI, onde `dados-reais/` não existe e os caminhos são null.
+ * Por isso a leitura acontece dentro dos testes, via esta função preguiçosa.
+ */
+let cache: DadosPainel | null = null
+const painelDeTeste = () => (cache ??= montarPainel())
+
+
+/** Renderiza cada tela sob demanda, nunca no corpo do describe. */
+const htmlRelatorio = () => renderToStaticMarkup(<Relatorio dados={painelDeTeste()} />)
+const htmlVisao = () => renderToStaticMarkup(<VisaoExecutiva dados={painelDeTeste()} />)
+const htmlDashboard = () => {
+  const p = painelDeTeste()
+  return renderToStaticMarkup(
+    <Painel
+      dados={{
+        mesReferencia: p.importacao.mesReferencia,
+        totalProcessos: p.totalProcessos,
+        cenarios: p.cenarios,
+        projecao: p.projecao,
+        recorrencia: p.recorrencia,
+        mga: p.mga,
+        exito: { percentual: p.exito.percentual },
+        tempo: { dias: p.tempo.dias, medianaDias: p.tempo.medianaDias },
+      }}
+    />
+  )
+}
+
 describe.skipIf(!temDados)('telas com a base real de julho/2026', () => {
-  const painel = montarPainel()
-
   describe('Relatório Executivo', () => {
-    const html = renderToStaticMarkup(<Relatorio dados={painel} />)
-
     it('renderiza as tabelas com linhas, não o estado vazio', () => {
+      const html = htmlRelatorio()
       expect(html).not.toContain('Nenhuma importação concluída')
       const linhas = (html.match(/<tr class="[^"]*border-b/g) ?? []).length
       expect(linhas).toBeGreaterThan(10)
@@ -158,21 +188,25 @@ describe.skipIf(!temDados)('telas com a base real de julho/2026', () => {
 
     it('não deixa NaN nem undefined chegarem à tela', () => {
       // O erro clássico de Decimal→number aparece exatamente assim.
+      const html = htmlRelatorio()
       expect(html).not.toMatch(/R\$\s*NaN/)
       expect(html).not.toContain('undefined')
       expect(html).not.toContain('NaN')
     })
 
     it('mostra as duas listas do Top com as contagens do motor', () => {
-      expect(html).toContain(`${painel.top.trabalhistaEIdpj.length} processos`)
-      expect(html).toContain(`${painel.top.topPorValor.length} de ${painel.top.elegiveisAoTop}`)
+      const html = htmlRelatorio()
+      const { top } = painelDeTeste()
+      expect(html).toContain(`${top.trabalhistaEIdpj.length} processos`)
+      expect(html).toContain(`${top.topPorValor.length} de ${top.elegiveisAoTop}`)
     })
 
     it('mascara o número de processo por padrão', () => {
-      expect(html).toContain('•••••••')
+      expect(htmlRelatorio()).toContain('•••••••')
     })
 
     it('dá caption a toda tabela, para leitor de tela', () => {
+      const html = htmlRelatorio()
       const tabelas = (html.match(/<table/g) ?? []).length
       const captions = (html.match(/<caption/g) ?? []).length
       expect(tabelas).toBeGreaterThan(0)
@@ -180,66 +214,57 @@ describe.skipIf(!temDados)('telas com a base real de julho/2026', () => {
     })
 
     it('avisa quando um processo aparece nas duas listas', () => {
-      const idsNoTop = new Set(painel.top.topPorValor.map(p => p.id))
-      const nasDuas = painel.top.trabalhistaEIdpj.filter(p => idsNoTop.has(p.id)).length
+      const { top } = painelDeTeste()
+      const idsNoTop = new Set(top.topPorValor.map(p => p.id))
+      const nasDuas = top.trabalhistaEIdpj.filter(p => idsNoTop.has(p.id)).length
       if (nasDuas > 0) {
-        expect(html).toContain('não devem ser somadas')
+        expect(htmlRelatorio()).toContain('não devem ser somadas')
       }
     })
   })
 
   describe('Visão Executiva', () => {
-    const html = renderToStaticMarkup(<VisaoExecutiva dados={painel} />)
-
     it('mostra os três cenários com os valores do motor de cálculo', () => {
-      const tela = norm(html)
+      const tela = norm(htmlVisao())
+      const { cenarios } = painelDeTeste()
       for (const c of ['CONSERVADOR', 'REALISTA', 'OTIMISTA'] as const) {
-        expect(tela).toContain(norm(brl(painel.cenarios[c].totalProvisionado)))
+        expect(tela).toContain(norm(brl(cenarios[c].totalProvisionado)))
       }
     })
 
     it('declara os processos que ficaram fora do cálculo', () => {
       // Um passivo menor por falta de dado é pior que um com ressalva.
-      const fora = painel.totalProcessos - painel.cenarios.REALISTA.totalCasos
+      const p = painelDeTeste()
+      const fora = p.totalProcessos - p.cenarios.REALISTA.totalCasos
       if (fora > 0) {
+        const html = htmlVisao()
         expect(html).toContain('ficaram fora do cálculo')
         expect(html).toContain('Nenhum deles foi somado como zero')
       }
     })
 
     it('não deixa NaN chegar à tela', () => {
+      const html = htmlVisao()
       expect(html).not.toMatch(/R\$\s*NaN/)
       expect(html).not.toContain('NaN')
     })
   })
 
   describe('Dashboard', () => {
-    const html = renderToStaticMarkup(
-      <Painel
-        dados={{
-          mesReferencia: painel.importacao.mesReferencia,
-          totalProcessos: painel.totalProcessos,
-          cenarios: painel.cenarios,
-          projecao: painel.projecao,
-          recorrencia: painel.recorrencia,
-          mga: painel.mga,
-          exito: { percentual: painel.exito.percentual },
-          tempo: { dias: painel.tempo.dias, medianaDias: painel.tempo.medianaDias },
-        }}
-      />
-    )
-
     it('expõe o seletor de cenário como radiogroup navegável', () => {
+      const html = htmlDashboard()
       expect(html).toContain('role="radiogroup"')
       expect((html.match(/role="radio"/g) ?? []).length).toBe(3)
       expect(html).toContain('aria-checked="true"')
     })
 
     it('abre no cenário Realista', () => {
-      expect(norm(html)).toContain(norm(brl(painel.cenarios.REALISTA.totalProvisionado)))
+      const { cenarios } = painelDeTeste()
+      expect(norm(htmlDashboard())).toContain(norm(brl(cenarios.REALISTA.totalProvisionado)))
     })
 
     it('não deixa NaN chegar à tela', () => {
+      const html = htmlDashboard()
       expect(html).not.toMatch(/R\$\s*NaN/)
       expect(html).not.toContain('NaN')
     })
