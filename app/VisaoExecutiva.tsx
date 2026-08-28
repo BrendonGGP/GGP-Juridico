@@ -1,10 +1,10 @@
 import { Cartao } from '@/components/shell/Pagina'
-import { CartaoValor, CartaoIndicador, brl, inteiro } from '@/components/dados/Numero'
+import { CartaoValor, CartaoIndicador } from '@/components/dados/Numero'
 import { ExplicacaoCenario } from '@/components/dados/SeletorCenario'
 import { ROTULO_CENARIO, CENARIOS } from '@/lib/calculo/cenarios'
 import { IconeAtencao } from '@/components/icones'
-import { mesPorExtenso } from './relatorio/Relatorio'
-import type { DadosPainel } from '@/lib/painel/carregar'
+import type { DadosPainel } from '@/lib/painel/tipos'
+import { brl, dataHora, inteiro, mesPorExtenso } from '@/lib/formato'
 
 /**
  * Corpo da Visão Executiva — só apresentação, sem acesso ao banco.
@@ -86,10 +86,7 @@ export function VisaoExecutiva({ dados }: { dados: DadosPainel }) {
           </ItemProcedencia>
           <ItemProcedencia rotulo="Importado em">
             {importacao.concluidaEm
-              ? importacao.concluidaEm.toLocaleString('pt-BR', {
-                  dateStyle: 'short',
-                  timeStyle: 'short',
-                })
+              ? dataHora(importacao.concluidaEm)
               : '—'}
           </ItemProcedencia>
           <ItemProcedencia rotulo="Arquivo de origem">

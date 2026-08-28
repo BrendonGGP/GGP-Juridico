@@ -1,10 +1,10 @@
 import { Cartao } from '@/components/shell/Pagina'
-import { brl, inteiro } from '@/components/dados/Numero'
 import { Tabela, Linha, Celula, NumeroProcesso } from '@/components/dados/Tabela'
 import { PilulaRisco, Etiqueta } from '@/components/dados/PilulaRisco'
 import { ROTULO_CENARIO, CENARIOS } from '@/lib/calculo/cenarios'
 import { LIMITE_TOP, VALOR_MINIMO_TOP } from '@/lib/calculo/top-processos'
-import type { DadosPainel } from '@/lib/painel/carregar'
+import { brl, inteiro, mesPorExtenso, dataHora } from '@/lib/formato'
+import type { DadosPainel } from '@/lib/painel/tipos'
 
 /**
  * Corpo do Relatório Executivo — só apresentação, sem acesso ao banco.
@@ -23,17 +23,6 @@ import type { DadosPainel } from '@/lib/painel/carregar'
  * Um processo pode aparecer nas duas. A tela diz quantos, para ninguém somar
  * as listas e contar processo duas vezes.
  */
-
-const NOMES_MES = [
-  'janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho',
-  'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro',
-]
-
-export function mesPorExtenso(mes: string): string {
-  const [ano, m] = mes.split('-')
-  const nome = NOMES_MES[Number(m) - 1]
-  return nome ? `${nome} de ${ano}` : mes
-}
 
 const ORIGEM: Record<string, string> = {
   acordo: 'Acordo',
@@ -196,10 +185,7 @@ export function Relatorio({ dados }: { dados: DadosPainel }) {
           </ItemSintese>
           <ItemSintese rotulo="Importado em">
             {importacao.concluidaEm
-              ? importacao.concluidaEm.toLocaleString('pt-BR', {
-                  dateStyle: 'short',
-                  timeStyle: 'short',
-                })
+              ? dataHora(importacao.concluidaEm)
               : '—'}
           </ItemSintese>
           <ItemSintese rotulo="Arquivo de origem">

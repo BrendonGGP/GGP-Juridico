@@ -1,73 +1,38 @@
 /**
- * Camada de dados do painel: do banco para o motor de cálculo.
+ * Busca no banco os dados do painel.
  *
- * Existe para que as telas nunca falem com o Prisma diretamente. Elas recebem
- * o resultado já calculado pelos módulos de `lib/calculo`, que são os únicos
- * autorizados a interpretar valor.
+ * Responsabilidade única: escolher a importação vigente, ler os snapshots e
+ * delegar. Não calcula nada — o cálculo vive em `montar.ts`, compartilhado
+ * com a origem planilha, e a tradução em `de-banco.ts`.
  *
- * Duas responsabilidades que só existem aqui:
- *
- *  1. **Decimal → number.** O Prisma devolve `Decimal` para os campos
- *     monetários (18,2). O motor de cálculo trabalha com `number`. A conversão
- *     acontece num lugar só; espalhá-la seria convidar um `Number(undefined)`
- *     virando NaN dentro de um total de provisionamento.
- *
- *  2. **Escolher a importação vigente.** "A foto do mês" é a importação
- *     CONCLUÍDA mais recente — nunca uma EM_ANDAMENTO ou que FALHOU, cujos
- *     números estariam parciais. REGRA 6: as anteriores continuam lá.
+ * A regra que só existe aqui: "a foto do mês" é a importação CONCLUÍDA mais
+ * recente. Nunca uma EM_ANDAMENTO ou que FALHOU, cujos números estariam
+ * parciais e passariam por completos.
  */
 
 import { prisma } from '../db.ts'
-import { calcularTodosCenarios, type Cenario } from '../calculo/cenarios.ts'
+import { montarPainel } from './montar.ts'
+import { parcelasDeBanco, processosDeBanco } from './de-banco.ts'
+import type { DadosPainel, ImportacaoVigente } from './tipos.ts'
 
 /**
  * Cliente do banco usado nas leituras.
  *
- * Existe como parâmetro para que uma verificação possa passar o cliente de
- * uma transação e ler o que ela gravou antes de desfazê-la. Em produção
- * nunca é informado: usa o singleton.
+ * É parâmetro para que uma verificação possa passar o cliente de uma
+ * transação e ler o que ela gravou antes de desfazê-la. Em produção nunca é
+ * informado: usa o singleton.
  */
 type ClienteLeitura = Pick<typeof prisma, 'importacao' | 'processoSnapshot' | 'parcelaAcordo'>
-import { calcularProjecao } from '../calculo/projecao.ts'
-import { calcularTop } from '../calculo/top-processos.ts'
-import {
-  calcularTaxaExito,
-  calcularTempoMedio,
-  calcularRecorrencia,
-  calcularEfeitoTeses,
-  calcularConcentracaoMga,
-} from '../calculo/kpis.ts'
 
-/** Decimal do Prisma → number. null continua null (nunca vira 0). */
-function num(v: unknown): number | null {
-  if (v === null || v === undefined) return null
-  const n = Number(v)
-  // NaN aqui significaria dado corrompido virando número silenciosamente.
-  return Number.isFinite(n) ? n : null
-}
+const STATUS_CONCLUIDO = ['CONCLUIDA', 'CONCLUIDA_COM_PENDENCIAS'] as const
 
-export interface ImportacaoVigente {
-  id: string
-  mesReferencia: string
-  concluidaEm: Date | null
-  arquivoGeralNome: string | null
-  totalPendencias: number
-}
-
-/**
- * A importação que o painel deve mostrar.
- *
- * Só considera status concluído. Se a última tentativa falhou, o painel
- * continua mostrando o último mês bom — com a data à vista, para ninguém
- * confundir dado velho com dado atual.
- */
 export async function importacaoVigente(
   mesReferencia?: string,
   db: ClienteLeitura = prisma
 ): Promise<ImportacaoVigente | null> {
-  const imp = await db.importacao.findFirst({
+  return db.importacao.findFirst({
     where: {
-      status: { in: ['CONCLUIDA', 'CONCLUIDA_COM_PENDENCIAS'] },
+      status: { in: [...STATUS_CONCLUIDO] },
       ...(mesReferencia ? { mesReferencia } : {}),
     },
     orderBy: [{ mesReferencia: 'desc' }, { concluidaEm: 'desc' }],
@@ -79,13 +44,12 @@ export async function importacaoVigente(
       totalPendencias: true,
     },
   })
-  return imp
 }
 
 /** Meses disponíveis, do mais recente para o mais antigo. */
 export async function mesesDisponiveis(db: ClienteLeitura = prisma): Promise<string[]> {
   const linhas = await db.importacao.findMany({
-    where: { status: { in: ['CONCLUIDA', 'CONCLUIDA_COM_PENDENCIAS'] } },
+    where: { status: { in: [...STATUS_CONCLUIDO] } },
     select: { mesReferencia: true },
     distinct: ['mesReferencia'],
     orderBy: { mesReferencia: 'desc' },
@@ -93,25 +57,12 @@ export async function mesesDisponiveis(db: ClienteLeitura = prisma): Promise<str
   return linhas.map(l => l.mesReferencia)
 }
 
-export interface DadosPainel {
-  importacao: ImportacaoVigente
-  totalProcessos: number
-  cenarios: ReturnType<typeof calcularTodosCenarios>
-  projecao: ReturnType<typeof calcularProjecao>
-  top: ReturnType<typeof calcularTop>
-  exito: ReturnType<typeof calcularTaxaExito>
-  tempo: ReturnType<typeof calcularTempoMedio>
-  recorrencia: ReturnType<typeof calcularRecorrencia>
-  teses: ReturnType<typeof calcularEfeitoTeses>
-  mga: ReturnType<typeof calcularConcentracaoMga>
-}
-
 /**
- * Carrega os snapshots da importação vigente e roda todo o motor de cálculo.
+ * Carrega o painel da importação vigente.
  *
- * Devolve `null` quando ainda não há nenhuma importação concluída — estado
- * legítimo de sistema recém-instalado, que as telas tratam com uma mensagem
- * em vez de um painel de zeros.
+ * Devolve `null` quando não há nenhuma importação concluída — estado legítimo
+ * de sistema recém-instalado, que as telas tratam com uma mensagem em vez de
+ * um painel de zeros.
  */
 export async function carregarPainel(
   mesReferencia?: string,
@@ -129,6 +80,7 @@ export async function carregarPainel(
       tipoAcao: true,
       risco: true,
       poloCliente: true,
+      abaOrigem: true,
       valorProvisionado: true,
       valorCausa: true,
       valorAcordo: true,
@@ -139,7 +91,6 @@ export async function carregarPainel(
       dataEncerramento: true,
       processo: { select: { numeroProcesso: true } },
       mga: { select: { nomeCanonico: true } },
-      abaOrigem: true,
     },
   })
 
@@ -150,81 +101,11 @@ export async function carregarPainel(
     select: { mesReferencia: true, valorParcela: true },
   })
 
-  const cenarios = calcularTodosCenarios(
-    snapshots.map(s => ({
-      risco: s.risco,
-      valorProvisionado: num(s.valorProvisionado),
-      encerrado: s.encerrado,
-    }))
-  )
-
-  const projecao = calcularProjecao(
-    parcelas
-      .map(p => ({ mesReferencia: p.mesReferencia, valor: num(p.valorParcela) ?? 0 }))
-      .filter(p => p.valor > 0),
-    importacao.mesReferencia
-  )
-
-  const top = calcularTop(
-    snapshots.map(s => ({
-      id: s.processoId,
-      numeroProcesso: s.processo.numeroProcesso,
-      carteira: s.abaOrigem,
-      area: s.area,
-      tipoAcao: s.tipoAcao,
-      risco: s.risco,
-      encerrado: s.encerrado,
-      valorCausa: num(s.valorCausa),
-      valorAcordo: num(s.valorAcordo),
-      valorCondenacao: num(s.valorCondenacao),
-      valorProvisionado: num(s.valorProvisionado),
-    }))
-  )
-
-  const exito = calcularTaxaExito(
-    snapshots.map(s => ({
-      valorCausa: num(s.valorCausa),
-      valorAcordo: num(s.valorAcordo),
-      valorCondenacao: num(s.valorCondenacao),
-      encerrado: s.encerrado,
-      resultadoSentenca: s.resultadoSentenca,
-    }))
-  )
-
-  const tempo = calcularTempoMedio(
-    snapshots.map(s => ({
-      dataCadastro: s.dataCadastro,
-      dataEncerramento: s.dataEncerramento,
-    }))
-  )
-
-  const recorrencia = calcularRecorrencia(snapshots.map(s => s.tipoAcao), 8)
-
-  const teses = calcularEfeitoTeses(
-    snapshots.map(s => ({
-      motivoSinistro: s.motivoSinistro,
-      resultadoSentenca: s.resultadoSentenca,
-      poloCliente: s.poloCliente,
-    }))
-  )
-
-  const mga = calcularConcentracaoMga(
-    snapshots.map(s => s.mga?.nomeCanonico ?? null),
-    8
-  )
-
-  return {
+  return montarPainel(
+    processosDeBanco(snapshots),
     importacao,
-    totalProcessos: snapshots.length,
-    cenarios,
-    projecao,
-    top,
-    exito,
-    tempo,
-    recorrencia,
-    teses,
-    mga,
-  }
+    parcelasDeBanco(parcelas)
+  )
 }
 
-export type { Cenario }
+export type { DadosPainel, ImportacaoVigente } from './tipos.ts'

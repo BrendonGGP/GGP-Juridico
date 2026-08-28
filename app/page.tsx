@@ -3,7 +3,7 @@ import { Pagina } from '@/components/shell/Pagina'
 import { SemDados } from '@/components/shell/SemDados'
 import { inteiro } from '@/components/dados/Numero'
 import { VisaoExecutiva } from './VisaoExecutiva'
-import { mesPorExtenso } from './relatorio/Relatorio'
+import { mesPorExtenso } from '@/lib/formato'
 
 /**
  * Visão Executiva — a tela de abertura.

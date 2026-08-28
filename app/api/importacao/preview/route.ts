@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { prepararImportacao } from '@/lib/ingestao/importar'
 import { LIMITES_PADRAO } from '@/lib/ingestao/validar-upload'
+import { ehDesenvolvimento } from '@/lib/config'
 
 /**
  * Passo 1 da importação: preview. NÃO grava nada.
@@ -15,7 +16,17 @@ export const runtime = 'nodejs'
 export const maxDuration = 300
 
 export async function POST(req: Request) {
-  if (process.env.APP_ENV === 'production') {
+  // FAIL-CLOSED: libera apenas em desenvolvimento declarado.
+  //
+  // A versão anterior bloqueava com `APP_ENV === 'production'` — uma
+  // comparação de string solta. Se a variável viesse `Production`, `prod` ou
+  // ausente, a condição dava falso e a rota ABRIA. Numa trava que existe
+  // porque a autenticação ainda não foi construída, errar para o lado aberto
+  // é o pior desfecho possível.
+  //
+  // Agora o padrão é negar: só passa quando o ambiente é reconhecidamente
+  // development (enum validado em lib/config.ts).
+  if (!ehDesenvolvimento) {
     return NextResponse.json(
       { erro: 'Importação indisponível: autenticação ainda não implementada.' },
       { status: 503 }

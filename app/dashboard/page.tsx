@@ -4,6 +4,7 @@ import { Pagina } from '@/components/shell/Pagina'
 import { SemDados } from '@/components/shell/SemDados'
 import { inteiro } from '@/components/dados/Numero'
 import { PainelComUrl } from './Painel'
+import { mesPorExtenso } from '@/lib/formato'
 
 /**
  * Dashboard — exploração de um cenário por vez.
@@ -17,17 +18,6 @@ import { PainelComUrl } from './Painel'
  */
 
 export const dynamic = 'force-dynamic'
-
-const NOMES_MES = [
-  'janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho',
-  'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro',
-]
-
-function mesPorExtenso(mes: string): string {
-  const [ano, m] = mes.split('-')
-  const nome = NOMES_MES[Number(m) - 1]
-  return nome ? `${nome} de ${ano}` : mes
-}
 
 export default async function DashboardPage() {
   const dados = await carregarPainel()

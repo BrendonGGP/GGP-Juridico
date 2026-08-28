@@ -25,16 +25,14 @@
 // Prisma 7 não carrega .env sozinho — tem de vir antes de lib/db.ts.
 import 'dotenv/config'
 import { carregar } from './_selecionar-arquivos.ts'
-import { lerPlanilha } from '../lib/ingestao/ler-planilha.ts'
-import { consolidar, mesclarAcordos } from '../lib/ingestao/consolidar.ts'
+import { processarPlanilhas } from '../lib/ingestao/pipeline.ts'
 import { gravarImportacao } from '../lib/ingestao/gravar.ts'
 import { carregarPainel, mesesDisponiveis } from '../lib/painel/carregar.ts'
 import { prisma } from '../lib/db.ts'
 import { CENARIOS, ROTULO_CENARIO } from '../lib/calculo/cenarios.ts'
+import { brl } from '../lib/formato.ts'
 
 const MES = process.argv[2] ?? '2026-07'
-const brl = (n: number) =>
-  n.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 })
 
 let falhas = 0
 const falhar = (msg: string) => {
@@ -50,11 +48,8 @@ const fAcordos = carregar('ACORDOS', MES)
 console.log(`Geral:   ${fGeral.arquivo.nome}`)
 console.log(`Acordos: ${fAcordos.arquivo.nome}\n`)
 
-const lidoGeral = lerPlanilha(fGeral.conteudo)
-const consGeral = consolidar(lidoGeral.linhas)
-const lidoAcordos = lerPlanilha(fAcordos.conteudo)
-const consAcordos = consolidar(lidoAcordos.linhas)
-const { registros, orfaos } = mesclarAcordos(consGeral.registros, consAcordos.registros)
+const pipeline = processarPlanilhas(fGeral.conteudo, fAcordos.conteudo)
+const { registros, orfaos } = pipeline
 
 console.log(`ESCRITA (dryRun) — ${registros.length} processos consolidados`)
 
@@ -63,8 +58,8 @@ const r = await gravarImportacao(prisma, {
   // Chave própria de verificação: nunca colide com uma importação real.
   idempotencyKey: `verificacao-painel-${MES}`,
   registros,
-  pendencias: [...lidoGeral.pendencias, ...consGeral.pendencias],
-  reconciliacao: consGeral.reconciliacao,
+  pendencias: pipeline.pendencias,
+  reconciliacao: pipeline.reconciliacao,
   orfaos,
   arquivoGeralNome: fGeral.arquivo.nome,
   arquivoAcordosNome: fAcordos.arquivo.nome,

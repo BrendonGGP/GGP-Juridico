@@ -9,17 +9,10 @@ import type { Indicador } from '@/lib/calculo/kpis'
  * não um traço mudo e nunca um zero.
  */
 
-export const brl = (n: number) =>
-  n.toLocaleString('pt-BR', {
-    style: 'currency',
-    currency: 'BRL',
-    maximumFractionDigits: 0,
-  })
-
-export const brlExato = (n: number) =>
-  n.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
-
-export const inteiro = (n: number) => n.toLocaleString('pt-BR')
+// Formatação vive em lib/formato.ts, compartilhada com tela, script e teste.
+// Reexportada aqui por conveniência de quem já importa deste módulo.
+import { inteiro } from '@/lib/formato'
+export { brl, brlExato, inteiro } from '@/lib/formato'
 
 /** Cartão de KPI. `base` é sempre exibida — número sem lastro engana. */
 export function CartaoIndicador({

@@ -20,140 +20,16 @@
  */
 import { describe, it, expect } from 'vitest'
 import { renderToStaticMarkup } from 'react-dom/server'
-import * as fs from 'node:fs'
-import * as path from 'node:path'
 
-import { lerPlanilha } from '@/lib/ingestao/ler-planilha'
-import { consolidar, mesclarAcordos } from '@/lib/ingestao/consolidar'
-import { calcularTodosCenarios } from '@/lib/calculo/cenarios'
-import { calcularProjecao } from '@/lib/calculo/projecao'
-import { calcularTop } from '@/lib/calculo/top-processos'
-import {
-  calcularTaxaExito,
-  calcularTempoMedio,
-  calcularRecorrencia,
-  calcularEfeitoTeses,
-  calcularConcentracaoMga,
-} from '@/lib/calculo/kpis'
-import type { DadosPainel } from '@/lib/painel/carregar'
+import { painelDaBaseReal as painelDeTeste, temBaseReal } from './apoio/base-real'
+import { brl } from '@/lib/formato'
 
 import { Relatorio } from '@/app/relatorio/Relatorio'
 import { VisaoExecutiva } from '@/app/VisaoExecutiva'
 import { Painel } from '@/app/dashboard/Painel'
 
-const DIR = path.join(process.cwd(), 'dados-reais')
-const MES = '2026-07'
-
-/** Localiza a planilha do tipo e mês, sem depender do nome exato. */
-function achar(tipo: 'GERAL' | 'ACORDOS'): string | null {
-  if (!fs.existsSync(DIR)) return null
-  const norm = (s: string) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toUpperCase()
-  const candidatos = fs.readdirSync(DIR).filter(f => {
-    if (!f.toLowerCase().endsWith('.xlsx')) return false
-    const n = norm(f)
-    const ehAcordo = n.includes('ACORDO')
-    return (tipo === 'ACORDOS' ? ehAcordo : !ehAcordo) && n.includes('JULHO-2026')
-  })
-  return candidatos.length === 1 ? path.join(DIR, candidatos[0]) : null
-}
-
-const geral = achar('GERAL')
-const acordos = achar('ACORDOS')
-const temDados = geral !== null && acordos !== null
-
-/** Monta o mesmo objeto que `carregarPainel` entrega, sem passar pelo banco. */
-function montarPainel(): DadosPainel {
-  const lidoGeral = lerPlanilha(fs.readFileSync(geral!))
-  const consGeral = consolidar(lidoGeral.linhas)
-  const lidoAcordos = lerPlanilha(fs.readFileSync(acordos!))
-  const consAcordos = consolidar(lidoAcordos.linhas)
-  const { registros } = mesclarAcordos(consGeral.registros, consAcordos.registros)
-
-  const n = (v: unknown) => (typeof v === 'number' ? v : null)
-  const s = (v: unknown) => (typeof v === 'string' && v !== '' ? v : null)
-  const dt = (v: unknown) => (v instanceof Date ? v : null)
-  const risco = (v: unknown) => (v as 'PROVAVEL' | 'POSSIVEL' | 'REMOTO' | null) ?? null
-
-  return {
-    importacao: {
-      id: 'teste',
-      mesReferencia: MES,
-      concluidaEm: new Date('2026-08-05T12:00:00Z'),
-      arquivoGeralNome: path.basename(geral!),
-      totalPendencias: lidoGeral.pendencias.length + consGeral.pendencias.length,
-    },
-    totalProcessos: registros.length,
-    cenarios: calcularTodosCenarios(
-      registros.map(r => ({
-        risco: risco(r.campos.risco),
-        valorProvisionado: n(r.campos.valor_provisionado),
-        encerrado: r.encerrado,
-      }))
-    ),
-    projecao: calcularProjecao(
-      registros.flatMap(r =>
-        r.parcelas.map(p => ({ mesReferencia: p.mesReferencia, valor: p.valor }))
-      ),
-      MES
-    ),
-    top: calcularTop(
-      registros.map((r, i) => ({
-        id: String(i),
-        numeroProcesso: s(r.numeroProcesso),
-        carteira: r.carteira,
-        area: s(r.campos.area),
-        tipoAcao: s(r.campos.tipo_acao),
-        risco: risco(r.campos.risco),
-        encerrado: r.encerrado,
-        valorCausa: n(r.campos.valor_causa),
-        valorAcordo: n(r.campos.valor_acordo),
-        valorCondenacao: n(r.campos.valor_condenacao),
-        valorProvisionado: n(r.campos.valor_provisionado),
-      }))
-    ),
-    exito: calcularTaxaExito(
-      registros.map(r => ({
-        valorCausa: n(r.campos.valor_causa),
-        valorAcordo: n(r.campos.valor_acordo),
-        valorCondenacao: n(r.campos.valor_condenacao),
-        encerrado: r.encerrado,
-        resultadoSentenca: s(r.campos.resultado_sentenca),
-      }))
-    ),
-    tempo: calcularTempoMedio(
-      registros.map(r => ({
-        dataCadastro: dt(r.campos.data_cadastro),
-        dataEncerramento: dt(r.campos.data_encerramento),
-      }))
-    ),
-    recorrencia: calcularRecorrencia(registros.map(r => s(r.campos.tipo_acao)), 8),
-    teses: calcularEfeitoTeses(
-      registros.map(r => ({
-        motivoSinistro: s(r.campos.motivo_sinistro),
-        resultadoSentenca: s(r.campos.resultado_sentenca),
-        poloCliente: s(r.campos.polo_cliente),
-      }))
-    ),
-    mga: calcularConcentracaoMga(registros.map(r => s(r.campos.mga)), 8),
-  }
-}
-
 /** Normaliza espaços: toLocaleString usa nbsp entre "R$" e o número. */
 const norm = (s: string) => s.replace(/\s/g, ' ')
-
-const brl = (v: number) =>
-  v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 })
-
-/**
- * Monta uma vez e reaproveita.
- *
- * `describe.skipIf` pula a EXECUÇÃO dos testes, mas o Vitest ainda avalia o
- * corpo do describe para descobrir quais testes existem. Ler as planilhas ali
- * quebrava o CI, onde `dados-reais/` não existe e os caminhos são null.
- * Por isso a leitura acontece dentro dos testes, via esta função preguiçosa.
- */
-let cache: DadosPainel | null = null
-const painelDeTeste = () => (cache ??= montarPainel())
 
 
 /** Renderiza cada tela sob demanda, nunca no corpo do describe. */
@@ -177,7 +53,7 @@ const htmlDashboard = () => {
   )
 }
 
-describe.skipIf(!temDados)('telas com a base real de julho/2026', () => {
+describe.skipIf(!temBaseReal)('telas com a base real de julho/2026', () => {
   describe('Relatório Executivo', () => {
     it('renderiza as tabelas com linhas, não o estado vazio', () => {
       const html = htmlRelatorio()
@@ -271,8 +147,8 @@ describe.skipIf(!temDados)('telas com a base real de julho/2026', () => {
   })
 })
 
-describe.skipIf(temDados)('telas com a base real', () => {
+describe.skipIf(temBaseReal)('telas com a base real', () => {
   it('pulado: dados-reais/ não está presente nesta máquina', () => {
-    expect(temDados).toBe(false)
+    expect(temBaseReal).toBe(false)
   })
 })
