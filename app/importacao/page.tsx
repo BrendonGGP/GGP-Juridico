@@ -1,6 +1,7 @@
 'use client'
 
 import { useRef, useState } from 'react'
+import { Pagina } from '@/components/shell/Pagina'
 
 interface Pendencia {
   tipo: string
@@ -81,25 +82,23 @@ export default function ImportacaoPage() {
   }
 
   return (
-    <main className="mx-auto max-w-5xl px-4 py-10">
-      <h1 className="text-2xl font-semibold tracking-tight">Importação mensal</h1>
-      <p className="mt-2 text-sm text-neutral-600 dark:text-neutral-400">
-        Envie o Relatório Geral e, se houver, a planilha de Acordos. Nada é gravado
-        agora — você verá um resumo do que vai acontecer antes de confirmar.
-      </p>
-
+    <Pagina
+      titulo="Importação mensal"
+      descricao="Nada é gravado agora — você verá um resumo antes de confirmar."
+    >
+      <div className="max-w-4xl">
       {erros.length > 0 && (
         <div
           ref={resumoErrosRef}
           role="alert"
           tabIndex={-1}
           aria-labelledby="titulo-erros"
-          className="mt-6 rounded-lg border-2 border-red-600 bg-red-50 p-4 dark:bg-red-950/40"
+          className="mt-6 rounded-lg border-2 border-[var(--cor-erro-texto)] bg-erro-fundo p-4"
         >
-          <h2 id="titulo-erros" className="font-semibold text-red-900 dark:text-red-200">
+          <h2 id="titulo-erros" className="font-semibold text-erro-texto">
             A planilha não foi aceita
           </h2>
-          <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-red-900 dark:text-red-200">
+          <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-erro-texto">
             {erros.map((e, i) => (
               <li key={i}>{e}</li>
             ))}
@@ -118,9 +117,9 @@ export default function ImportacaoPage() {
             required
             value={mesReferencia}
             onChange={e => setMesReferencia(e.target.value)}
-            className="mt-1 min-h-11 rounded-md border border-neutral-400 bg-white px-3 text-sm dark:border-neutral-600 dark:bg-neutral-900"
+            className="mt-1 min-h-11 rounded-ggp-sm border border-borda-forte bg-white px-3 text-sm"
           />
-          <p className="mt-1 text-xs text-neutral-600 dark:text-neutral-400">
+          <p className="mt-1 text-xs text-texto-suave">
             É o mês da planilha, não a data de hoje.
           </p>
         </div>
@@ -143,7 +142,7 @@ export default function ImportacaoPage() {
         <button
           type="submit"
           disabled={carregando}
-          className="min-h-11 rounded-md bg-neutral-900 px-5 text-sm font-medium text-white disabled:opacity-60 dark:bg-white dark:text-neutral-900"
+          className="min-h-11 rounded-ggp-sm bg-primaria px-5 text-sm font-medium text-white disabled:opacity-60"
         >
           {carregando ? 'Analisando…' : 'Analisar planilha'}
         </button>
@@ -153,7 +152,8 @@ export default function ImportacaoPage() {
       </form>
 
       {preview && <ResultadoPreview preview={preview} />}
-    </main>
+      </div>
+    </Pagina>
   )
 }
 
@@ -176,10 +176,10 @@ function CampoArquivo({
     <div>
       <label htmlFor={id} className="block text-sm font-medium">
         {rotulo}
-        {obrigatorio && <span className="text-red-700 dark:text-red-400"> *</span>}
+        {obrigatorio && <span className="text-erro-texto"> *</span>}
       </label>
       {descricao && (
-        <p className="text-xs text-neutral-600 dark:text-neutral-400">{descricao}</p>
+        <p className="text-xs text-texto-suave">{descricao}</p>
       )}
       <input
         id={id}
@@ -187,10 +187,10 @@ function CampoArquivo({
         accept=".xlsx"
         required={obrigatorio}
         onChange={e => onChange(e.target.files?.[0] ?? null)}
-        className="mt-1 block w-full min-h-11 text-sm file:mr-3 file:min-h-9 file:rounded-md file:border file:border-neutral-400 file:bg-neutral-50 file:px-3 file:text-sm dark:file:border-neutral-600 dark:file:bg-neutral-800 dark:file:text-neutral-100"
+        className="mt-1 block w-full min-h-11 text-sm file:mr-3 file:min-h-9 file:rounded-ggp-sm file:border file:border-borda-forte file:bg-fundo file:px-3 file:text-sm"
       />
       {arquivo && (
-        <p className="mt-1 text-xs text-neutral-600 dark:text-neutral-400">
+        <p className="mt-1 text-xs text-texto-suave">
           {arquivo.name} — {(arquivo.size / 1024 / 1024).toFixed(1)} MB
         </p>
       )}
@@ -222,7 +222,7 @@ function ResultadoPreview({ preview }: { preview: Preview }) {
           <table className="w-full min-w-[32rem] border-collapse text-sm">
             <caption className="sr-only">Abas encontradas na planilha</caption>
             <thead>
-              <tr className="border-b border-neutral-300 text-left dark:border-neutral-700">
+              <tr className="border-b border-borda text-left">
                 <th scope="col" className="py-2 pr-4 font-medium">Aba</th>
                 <th scope="col" className="py-2 pr-4 font-medium">Tipo</th>
                 <th scope="col" className="py-2 text-right font-medium">Linhas</th>
@@ -230,9 +230,9 @@ function ResultadoPreview({ preview }: { preview: Preview }) {
             </thead>
             <tbody>
               {r.abas.map(a => (
-                <tr key={a.nome} className="border-b border-neutral-200 dark:border-neutral-800">
+                <tr key={a.nome} className="border-b border-borda">
                   <td className="py-2 pr-4">{a.nome}</td>
-                  <td className="py-2 pr-4 text-neutral-600 dark:text-neutral-400">
+                  <td className="py-2 pr-4 text-texto-suave">
                     {a.tipo === 'GERAL' ? 'GERAL (não importada)' : a.tipo}
                   </td>
                   <td className="py-2 text-right tabular-nums">{a.linhas}</td>
@@ -246,10 +246,10 @@ function ResultadoPreview({ preview }: { preview: Preview }) {
       {r.mesesDeParcela.length > 0 && (
         <div>
           <h3 className="text-sm font-semibold">Meses de parcela detectados</h3>
-          <p className="mt-1 text-sm text-neutral-700 dark:text-neutral-300">
+          <p className="mt-1 text-sm text-texto-suave">
             {r.mesesDeParcela.join(' · ')}
           </p>
-          <p className="mt-1 text-xs text-neutral-600 dark:text-neutral-400">
+          <p className="mt-1 text-xs text-texto-suave">
             Meses já recebidos antes serão atualizados, não duplicados.
           </p>
         </div>
@@ -258,13 +258,13 @@ function ResultadoPreview({ preview }: { preview: Preview }) {
       <div>
         <h3 className="text-sm font-semibold">
           Pendências{' '}
-          <span className="font-normal text-neutral-600 dark:text-neutral-400">
+          <span className="font-normal text-texto-suave">
             — nenhuma impede a importação
           </span>
         </h3>
 
         {!precisaAtencao ? (
-          <p className="mt-2 rounded-md border border-neutral-300 p-3 text-sm dark:border-neutral-700">
+          <p className="mt-2 rounded-ggp-sm border border-borda p-3 text-sm">
             Nada a revisar nesta planilha.
           </p>
         ) : (
@@ -289,7 +289,7 @@ function ResultadoPreview({ preview }: { preview: Preview }) {
               <table className="w-full min-w-[40rem] border-collapse text-sm">
                 <caption className="sr-only">Detalhe das pendências encontradas</caption>
                 <thead>
-                  <tr className="border-b border-neutral-300 text-left dark:border-neutral-700">
+                  <tr className="border-b border-borda text-left">
                     <th scope="col" className="py-2 pr-4 font-medium">Aba</th>
                     <th scope="col" className="py-2 pr-4 font-medium">Linha</th>
                     <th scope="col" className="py-2 pr-4 font-medium">Campo</th>
@@ -298,7 +298,7 @@ function ResultadoPreview({ preview }: { preview: Preview }) {
                 </thead>
                 <tbody>
                   {preview.pendencias.map((p, i) => (
-                    <tr key={i} className="border-b border-neutral-200 align-top dark:border-neutral-800">
+                    <tr key={i} className="border-b border-borda align-top">
                       <td className="py-2 pr-4">{p.aba}</td>
                       <td className="py-2 pr-4 tabular-nums">{p.linha ?? '—'}</td>
                       <td className="py-2 pr-4">{p.campo ?? '—'}</td>
@@ -312,7 +312,7 @@ function ResultadoPreview({ preview }: { preview: Preview }) {
         )}
       </div>
 
-      <div className="rounded-lg border border-neutral-300 p-4 dark:border-neutral-700">
+      <div className="rounded-lg border border-borda p-4">
         <p className="text-sm">
           A gravação ainda não foi implementada nesta tela. O motor de ingestão está
           pronto e testado; a confirmação entra na próxima etapa, junto com a
@@ -325,9 +325,9 @@ function ResultadoPreview({ preview }: { preview: Preview }) {
 
 function Indicador({ rotulo, valor }: { rotulo: string; valor: number }) {
   return (
-    <div className="rounded-lg border border-neutral-300 p-4 dark:border-neutral-700">
+    <div className="rounded-lg border border-borda p-4">
       <div className="text-2xl font-semibold tabular-nums">{valor.toLocaleString('pt-BR')}</div>
-      <div className="mt-1 text-xs text-neutral-600 dark:text-neutral-400">{rotulo}</div>
+      <div className="mt-1 text-xs text-texto-suave">{rotulo}</div>
     </div>
   )
 }
@@ -338,8 +338,8 @@ function Etiqueta({ texto, neutro }: { texto: string; neutro?: boolean }) {
     <li
       className={
         neutro
-          ? 'rounded-full border border-neutral-400 px-2 py-1 dark:border-neutral-600'
-          : 'rounded-full border border-amber-700 bg-amber-50 px-2 py-1 text-amber-900 dark:bg-amber-950/40 dark:text-amber-200'
+          ? 'rounded-full border border-borda-forte px-2 py-1'
+          : 'rounded-full border border-[var(--cor-atencao-texto)] bg-atencao-fundo px-2 py-1 text-atencao-texto'
       }
     >
       {texto}
