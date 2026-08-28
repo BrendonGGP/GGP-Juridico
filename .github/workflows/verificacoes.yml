@@ -1,0 +1,69 @@
+name: Verificações
+
+# Roda em todo PR para a main e em push direto na main (rede de segurança,
+# caso a proteção de branch ainda não esteja ativa).
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+# Um PR atualizado cancela a execução anterior: o resultado do commit antigo
+# não interessa mais e só consumiria minutos.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+# Só leitura. O workflow não escreve nada no repositório.
+permissions:
+  contents: read
+
+jobs:
+  verificar:
+    name: Lint, tipos, testes e build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    # NÃO recebe DATABASE_URL nem qualquer segredo. Verificado localmente:
+    # os quatro passos abaixo passam sem banco. Se algum dia um deles exigir
+    # conexão, o certo é isolar a dependência — não dar credencial ao CI.
+    env:
+      NODE_ENV: test
+      # Silencia o aviso do Next sobre telemetria em ambiente não interativo.
+      NEXT_TELEMETRY_DISABLED: '1'
+
+    steps:
+      - name: Baixar o código
+        uses: actions/checkout@v4
+
+      - name: Preparar Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+
+      - name: Instalar dependências
+        # `npm ci` respeita o package-lock.json exatamente, como manda o
+        # CLAUDE.md. `npm install` poderia resolver versões diferentes das
+        # que foram testadas.
+        run: npm ci
+
+      - name: Gerar o cliente Prisma
+        # Não há postinstall no projeto, então isto é explícito. Funciona sem
+        # DATABASE_URL: gera tipos a partir do schema, não consulta o banco.
+        run: npm run db:generate
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Verificação de tipos
+        run: npm run typecheck
+
+      - name: Testes
+        # tests/telas.test.tsx se declara PULADO aqui, e isso é o esperado:
+        # ele depende das planilhas reais de dados-reais/, que é gitignored e
+        # nunca vai para o GitHub. Na máquina local ele roda com a base real.
+        run: npm test
+
+      - name: Build
+        run: npm run build
