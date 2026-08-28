@@ -2,7 +2,8 @@ import { carregarPainel } from '@/lib/painel/carregar'
 import { Pagina } from '@/components/shell/Pagina'
 import { SemDados } from '@/components/shell/SemDados'
 import { inteiro } from '@/components/dados/Numero'
-import { Relatorio, mesPorExtenso } from './Relatorio'
+import { Relatorio } from './Relatorio'
+import { mesPorExtenso } from '@/lib/formato'
 
 /**
  * Relatório Executivo — busca os dados e entrega ao corpo da tela.
