@@ -2,15 +2,21 @@
  * Tela de acesso.
  *
  * O que estes testes protegem: as garantias que somem sem ninguém notar numa
- * refatoração de estilo — rótulo visível, autocomplete, senha mascarada — e o
- * fato de que a tela ainda NÃO autentica, que precisa continuar declarado
- * enquanto for verdade.
+ * refatoração de estilo — rótulo visível, autocomplete, senha mascarada.
+ *
+ * A autenticação em si é verificada em outro lugar: aqui o alvo é a marcação
+ * do formulário, que não deve regredir quando alguém mexer no visual.
  */
 import { describe, it, expect } from 'vitest'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { FormularioLogin } from '@/app/login/FormularioLogin'
 
-const html = renderToStaticMarkup(<FormularioLogin />)
+/** Ação de mentira: estes testes verificam a MARCAÇÃO do formulário, não a
+ *  autenticação. Chamar a ação real exigiria banco e Supabase para conferir
+ *  se um rótulo existe. */
+const acaoFalsa = async () => ({ erro: '' })
+
+const html = renderToStaticMarkup(<FormularioLogin acaoEntrar={acaoFalsa} />)
 
 describe('formulário de acesso', () => {
   it('dá rótulo visível aos dois campos, não só placeholder', () => {

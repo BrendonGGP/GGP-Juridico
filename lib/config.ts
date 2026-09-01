@@ -17,9 +17,8 @@ import { z } from 'zod'
  * `development`, que é o modo restritivo.
  *
  * O que NÃO é validado agressivamente: segredos ainda não usados pelo
- * sistema (Supabase, Anthropic, AUTH_*). Exigi-los agora quebraria o CI e o
- * build sem proteger nada — eles entram no schema quando a funcionalidade
- * que os consome existir.
+ * sistema (Anthropic). Exigi-los agora quebraria o CI e o build sem proteger
+ * nada — eles entram no schema quando a funcionalidade que os consome existir.
  */
 
 const schema = z.object({
@@ -35,6 +34,20 @@ const schema = z.object({
    * primeira consulta.
    */
   DATABASE_URL: z.string().url().optional(),
+
+  /**
+   * Supabase Auth. Opcionais no schema pelo mesmo motivo do DATABASE_URL: o
+   * `next build` e o CI rodam sem segredo nenhum. Quem exige de fato é
+   * `lib/auth/cliente.ts`, ao criar o cliente.
+   *
+   * A ANON_KEY é pública por natureza — vai para o navegador e é protegida
+   * pelas políticas do banco, não por sigilo. Já a SERVICE_ROLE_KEY ignora
+   * toda política de acesso: ela nunca pode ter o prefixo NEXT_PUBLIC_, que
+   * a embutiria no bundle do cliente.
+   */
+  NEXT_PUBLIC_SUPABASE_URL: z.string().url().optional(),
+  NEXT_PUBLIC_SUPABASE_ANON_KEY: z.string().min(1).optional(),
+  SUPABASE_SERVICE_ROLE_KEY: z.string().min(1).optional(),
 
   // --- Limites de ingestão (ver seguranca/configuracao-projeto.yaml) ---
   MAX_UPLOAD_MB: z.coerce.number().int().positive().default(25),
@@ -84,3 +97,27 @@ export const config = carregar()
  */
 export const ehProducao = config.APP_ENV === 'production'
 export const ehDesenvolvimento = config.APP_ENV === 'development'
+
+/**
+ * Lê uma variável obrigatória no ponto de uso.
+ *
+ * Existe para separar "o build não precisa disto" de "esta operação precisa":
+ * o schema acima deixa os segredos opcionais para o CI rodar sem eles, e aqui
+ * a exigência aparece no momento em que a funcionalidade é de fato usada.
+ *
+ * Nunca imprime o valor — só o nome. Uma chave de serviço num log é um
+ * segredo vazado, e log de erro costuma ir mais longe do que se espera.
+ */
+export function exigir(nome: keyof Config): string {
+  const valor = config[nome]
+  if (typeof valor !== 'string' || valor.length === 0) {
+    throw new Error(
+      `${nome} não está definida. Preencha o .env (veja .env.example) e reinicie o servidor.`
+    )
+  }
+  return valor
+}
+
+/** Se a autenticação está configurada. Não diz se está funcionando. */
+export const authConfigurada =
+  Boolean(config.NEXT_PUBLIC_SUPABASE_URL) && Boolean(config.NEXT_PUBLIC_SUPABASE_ANON_KEY)

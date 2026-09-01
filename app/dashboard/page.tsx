@@ -1,6 +1,7 @@
 import { Suspense } from 'react'
 import { carregarPainel } from '@/lib/painel/carregar'
 import { Pagina } from '@/components/shell/Pagina'
+import { usuarioParaNavegacao } from '@/components/shell/usuario-para-nav'
 import { SemDados } from '@/components/shell/SemDados'
 import { inteiro } from '@/components/dados/Numero'
 import { PainelComUrl } from './Painel'
@@ -20,11 +21,11 @@ import { mesPorExtenso } from '@/lib/formato'
 export const dynamic = 'force-dynamic'
 
 export default async function DashboardPage() {
-  const dados = await carregarPainel()
+  const [dados, usuario] = await Promise.all([carregarPainel(), usuarioParaNavegacao()])
 
   if (!dados) {
     return (
-      <Pagina titulo="Dashboard">
+      <Pagina usuario={usuario} titulo="Dashboard">
         <SemDados />
       </Pagina>
     )
@@ -32,6 +33,7 @@ export default async function DashboardPage() {
 
   return (
     <Pagina
+      usuario={usuario}
       titulo="Dashboard"
       descricao={`Base de ${mesPorExtenso(dados.importacao.mesReferencia)} · ${inteiro(dados.totalProcessos)} processos`}
     >

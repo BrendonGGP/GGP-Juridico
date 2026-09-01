@@ -3,6 +3,8 @@ import Link from 'next/link'
 import { Logo } from '@/components/marca/Logo'
 import { PainelMarca } from '@/components/marca/PainelMarca'
 import { FormularioLogin } from './FormularioLogin'
+import { entrar } from './acoes'
+import { authConfigurada } from '@/lib/config'
 
 /**
  * Tela de acesso.
@@ -21,7 +23,23 @@ export const metadata: Metadata = {
   title: 'Acesso — GGP-Jurídico',
 }
 
-export default function LoginPage() {
+/** Mensagens vindas da URL. Texto fixo, nunca o parâmetro cru — senão a URL
+ *  vira um jeito de escrever qualquer aviso na tela e induzir o usuário. */
+const AVISOS: Record<string, string> = {
+  'nao-configurado':
+    'A autenticação não está configurada neste ambiente. Procure o responsável pelo sistema.',
+  expirada: 'Sua sessão expirou. Entre novamente.',
+}
+
+export default async function LoginPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ proximo?: string; erro?: string }>
+}) {
+  const params = await searchParams
+  const proximo = params.proximo
+  const aviso = params.erro ? AVISOS[params.erro] : undefined
+
   return (
     <div className="grid min-h-dvh lg:grid-cols-2">
       {/* --- Coluna da marca ---------------------------------------- */}
@@ -61,7 +79,14 @@ export default function LoginPage() {
             Use o e-mail corporativo cadastrado pelo Jurídico.
           </p>
 
-          <FormularioLogin />
+          <FormularioLogin acaoEntrar={entrar} proximo={proximo} avisoInicial={aviso} />
+
+          {!authConfigurada && (
+            <p className="mt-4 rounded-ggp-sm bg-atencao-fundo p-3 text-xs leading-relaxed text-atencao-texto">
+              A autenticação ainda não está configurada neste ambiente. Preencha
+              as chaves do Supabase no <code>.env</code> e reinicie o servidor.
+            </p>
+          )}
 
           <p className="mt-6 border-t border-borda pt-4 text-xs leading-relaxed text-texto-suave">
             O acesso é concedido por convite, com perfil definido no convite.

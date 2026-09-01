@@ -1,5 +1,6 @@
 import { carregarPainel } from '@/lib/painel/carregar'
 import { Pagina } from '@/components/shell/Pagina'
+import { usuarioParaNavegacao } from '@/components/shell/usuario-para-nav'
 import { SemDados } from '@/components/shell/SemDados'
 import { inteiro } from '@/components/dados/Numero'
 import { Relatorio } from './Relatorio'
@@ -18,11 +19,11 @@ import { mesPorExtenso } from '@/lib/formato'
 export const dynamic = 'force-dynamic'
 
 export default async function RelatorioPage() {
-  const dados = await carregarPainel()
+  const [dados, usuario] = await Promise.all([carregarPainel(), usuarioParaNavegacao()])
 
   if (!dados) {
     return (
-      <Pagina titulo="Relatório Executivo">
+      <Pagina usuario={usuario} titulo="Relatório Executivo">
         <SemDados />
       </Pagina>
     )
@@ -30,6 +31,7 @@ export default async function RelatorioPage() {
 
   return (
     <Pagina
+      usuario={usuario}
       titulo="Relatório Executivo"
       descricao={`Base de ${mesPorExtenso(dados.importacao.mesReferencia)} · ${inteiro(dados.totalProcessos)} processos`}
     >
