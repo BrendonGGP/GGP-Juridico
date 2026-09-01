@@ -55,6 +55,7 @@ versionado.
 
 | Se você quer… | Leia |
 |---|---|
+| Rodar o sistema na sua máquina | [COMO-RODAR.md](COMO-RODAR.md) |
 | Entender a regra de negócio | `docs/especificacao/especificacao-projeto.docx` |
 | Trabalhar no código | [CLAUDE.md](CLAUDE.md) — em especial as **regras de domínio invioláveis** |
 | Entender as decisões de segurança | [seguranca/README.md](seguranca/README.md) |
