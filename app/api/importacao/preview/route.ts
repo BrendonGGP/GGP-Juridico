@@ -1,7 +1,9 @@
 import { NextResponse } from 'next/server'
 import { prepararImportacao } from '@/lib/ingestao/importar'
 import { LIMITES_PADRAO } from '@/lib/ingestao/validar-upload'
-import { ehDesenvolvimento } from '@/lib/config'
+import { ehDesenvolvimento, authConfigurada } from '@/lib/config'
+import { usuarioAtual, podeImportar } from '@/lib/auth/sessao'
+import { registrar } from '@/lib/auth/auditoria'
 
 /**
  * Passo 1 da importação: preview. NÃO grava nada.
@@ -9,28 +11,51 @@ import { ehDesenvolvimento } from '@/lib/config'
  * A importação é L3 na política de aprovação — o humano precisa ver o que vai
  * acontecer antes de autorizar. Esta rota produz esse retrato.
  *
- * TODO(Fase 6): exigir sessão autenticada com perfil que permita importar.
- * Enquanto a autenticação não existe, a rota fica restrita a desenvolvimento.
+ * A trava passou a ser de AUTORIZAÇÃO, não de ambiente: só ADMIN e JURIDICO
+ * importam. Diretoria e Contabilidade consomem o resultado e não têm motivo
+ * para reescrever a base do mês.
+ *
+ * O middleware já exige sessão para chegar aqui, mas a checagem é repetida:
+ * uma rota de API não pode depender de outra camada ter feito o trabalho.
+ * Se o matcher do middleware mudar por engano, esta continua fechada.
  */
 export const runtime = 'nodejs'
 export const maxDuration = 300
 
 export async function POST(req: Request) {
-  // FAIL-CLOSED: libera apenas em desenvolvimento declarado.
-  //
-  // A versão anterior bloqueava com `APP_ENV === 'production'` — uma
-  // comparação de string solta. Se a variável viesse `Production`, `prod` ou
-  // ausente, a condição dava falso e a rota ABRIA. Numa trava que existe
-  // porque a autenticação ainda não foi construída, errar para o lado aberto
-  // é o pior desfecho possível.
-  //
-  // Agora o padrão é negar: só passa quando o ambiente é reconhecidamente
-  // development (enum validado em lib/config.ts).
-  if (!ehDesenvolvimento) {
-    return NextResponse.json(
-      { erro: 'Importação indisponível: autenticação ainda não implementada.' },
-      { status: 503 }
-    )
+  /**
+   * FAIL-CLOSED em duas frentes.
+   *
+   * Sem Supabase configurado não há como saber quem está importando. Em
+   * desenvolvimento isso é tolerado — é como trabalhamos até aqui. Em
+   * qualquer outro ambiente, bloqueia: gravar sem autor produziria um
+   * histórico incapaz de responder "quem substituiu a base de julho?".
+   */
+  if (!authConfigurada) {
+    if (!ehDesenvolvimento) {
+      return NextResponse.json(
+        { erro: 'Importação indisponível: autenticação não configurada.' },
+        { status: 503 }
+      )
+    }
+  } else {
+    const usuario = await usuarioAtual()
+
+    if (!usuario) {
+      return NextResponse.json({ erro: 'Sessão expirada. Entre novamente.' }, { status: 401 })
+    }
+
+    if (!podeImportar(usuario)) {
+      await registrar({
+        usuarioId: usuario.id,
+        acao: 'IMPORTACAO_NEGADA',
+        detalhe: { perfil: usuario.perfil },
+      })
+      return NextResponse.json(
+        { erro: 'Seu perfil não permite importar planilhas.' },
+        { status: 403 }
+      )
+    }
   }
 
   // Barra o corpo grande ANTES de materializá-lo na memória.

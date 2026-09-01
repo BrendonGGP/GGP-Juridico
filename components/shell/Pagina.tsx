@@ -1,4 +1,6 @@
 import { Sidebar } from './Sidebar'
+import { sair } from '@/app/login/sair'
+import type { UsuarioVisivel } from './tipos'
 
 /**
  * Casca das telas: sidebar + faixa de topo + conteúdo.
@@ -13,15 +15,31 @@ export function Pagina({
   descricao,
   acoes,
   children,
+  usuario,
 }: {
   titulo: string
   descricao?: string
   acoes?: React.ReactNode
   children: React.ReactNode
+  /**
+   * Quem está logado. Vem por PROP, não é buscado aqui.
+   *
+   * Este componente renderiza a Sidebar, que é Client Component, e o Turbopack
+   * trata todo módulo importado daqui como alcançável pelo cliente. Chamar
+   * `usuarioAtual()` neste arquivo arrastava next/headers, Prisma e pg para o
+   * bundle do navegador e quebrava o build.
+   *
+   * Cada página busca com `usuarioParaNavegacao()` e passa o resultado.
+   */
+  usuario?: UsuarioVisivel | null
 }) {
+
   return (
     <div className="flex min-h-dvh flex-col md:flex-row">
-      <Sidebar />
+      <Sidebar
+        usuario={usuario}
+        aoSair={sair}
+      />
 
       <div className="flex min-w-0 flex-1 flex-col">
         <header className="flex flex-col gap-3 border-b border-borda bg-superficie px-5 py-4 sm:flex-row sm:items-center sm:justify-between sm:gap-6">

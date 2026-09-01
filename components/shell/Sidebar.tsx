@@ -9,6 +9,7 @@ import {
   IconeRelatorio,
   IconeImportacao,
 } from '../icones'
+import type { UsuarioVisivel } from './tipos'
 
 /**
  * Navegação lateral.
@@ -26,17 +27,39 @@ interface ItemNav {
   href: string
   rotulo: string
   Icone: (p: { className?: string }) => React.ReactElement
+  /** Só aparece para quem pode importar. */
+  exigeImportar?: boolean
 }
 
 const ITENS: ItemNav[] = [
   { href: '/', rotulo: 'Visão Executiva', Icone: IconeVisaoExecutiva },
   { href: '/dashboard', rotulo: 'Dashboard', Icone: IconePainel },
   { href: '/relatorio', rotulo: 'Relatório Executivo', Icone: IconeRelatorio },
-  { href: '/importacao', rotulo: 'Importação mensal', Icone: IconeImportacao },
+  { href: '/importacao', rotulo: 'Importação mensal', Icone: IconeImportacao, exigeImportar: true },
 ]
 
-export function Sidebar() {
+export function Sidebar({
+  usuario,
+  aoSair,
+}: {
+  usuario?: UsuarioVisivel | null
+  /**
+   * Server Action de logout, recebida por prop.
+   *
+   * Importá-la aqui arrastaria `next/headers` e o Prisma para o bundle do
+   * navegador — o build falha, e com razão. Recebida como prop, o cliente
+   * fica só com a referência da ação; o código continua no servidor.
+   */
+  aoSair?: () => Promise<void>
+}) {
   const pathname = usePathname()
+
+  /**
+   * Esconder o item não é a proteção — é cortesia com quem não pode usá-lo.
+   * A trava de verdade está na API (app/api/importacao/preview/route.ts), que
+   * recusa mesmo se alguém digitar o endereço direto.
+   */
+  const itens = ITENS.filter(i => !i.exigeImportar || usuario?.podeImportar !== false)
 
   return (
     <nav
@@ -53,7 +76,7 @@ export function Sidebar() {
       </div>
 
       <ul className="flex flex-1 gap-1 overflow-x-auto p-3 md:flex-col md:overflow-visible">
-        {ITENS.map(({ href, rotulo, Icone }) => {
+        {itens.map(({ href, rotulo, Icone }) => {
           const ativo = href === '/' ? pathname === '/' : pathname.startsWith(href)
           return (
             <li key={href} className="shrink-0">
@@ -82,6 +105,23 @@ export function Sidebar() {
           )
         })}
       </ul>
+
+      {usuario && (
+        <div className="border-t border-borda px-4 py-3">
+          <p className="truncate text-sm font-medium text-texto" title={usuario.nome}>
+            {usuario.nome}
+          </p>
+          <p className="text-xs text-texto-suave">{usuario.perfil}</p>
+          <form action={aoSair}>
+            <button
+              type="submit"
+              className="mt-2 min-h-11 cursor-pointer text-sm text-primaria-texto underline-offset-2 hover:underline"
+            >
+              Sair
+            </button>
+          </form>
+        </div>
+      )}
 
       <p className="hidden px-4 pb-4 text-[0.6875rem] leading-relaxed text-texto-suave md:block">
         Dados de uso interno. Não compartilhe fora do Jurídico.

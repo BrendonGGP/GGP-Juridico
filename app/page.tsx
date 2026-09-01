@@ -1,5 +1,6 @@
 import { carregarPainel } from '@/lib/painel/carregar'
 import { Pagina } from '@/components/shell/Pagina'
+import { usuarioParaNavegacao } from '@/components/shell/usuario-para-nav'
 import { SemDados } from '@/components/shell/SemDados'
 import { inteiro } from '@/components/dados/Numero'
 import { VisaoExecutiva } from './VisaoExecutiva'
@@ -16,11 +17,11 @@ import { mesPorExtenso } from '@/lib/formato'
 export const dynamic = 'force-dynamic'
 
 export default async function VisaoExecutivaPage() {
-  const dados = await carregarPainel()
+  const [dados, usuario] = await Promise.all([carregarPainel(), usuarioParaNavegacao()])
 
   if (!dados) {
     return (
-      <Pagina titulo="Visão Executiva">
+      <Pagina usuario={usuario} titulo="Visão Executiva">
         <SemDados />
       </Pagina>
     )
@@ -28,6 +29,7 @@ export default async function VisaoExecutivaPage() {
 
   return (
     <Pagina
+      usuario={usuario}
       titulo="Visão Executiva"
       descricao={`Base de ${mesPorExtenso(dados.importacao.mesReferencia)} · ${inteiro(dados.totalProcessos)} processos`}
     >
