@@ -3,6 +3,7 @@
 import { useRef, useState } from 'react'
 import { Pagina } from '@/components/shell/Pagina'
 import type { UsuarioVisivel } from '@/components/shell/tipos'
+import { PreviaIndicadores, type IndicadoresPrevia } from './PreviaIndicadores'
 
 interface Pendencia {
   tipo: string
@@ -34,6 +35,8 @@ interface Preview {
   avisos: string[]
   resumo: Resumo
   pendencias: Pendencia[]
+  /** Indicadores calculados sobre a planilha, sem gravar nada. */
+  indicadores?: IndicadoresPrevia
 }
 
 const mesAtual = () => new Date().toISOString().slice(0, 7)
@@ -155,6 +158,14 @@ export function FormularioImportacao({ usuario }: { usuario: UsuarioVisivel | nu
 
       {preview && <ResultadoPreview preview={preview} />}
       </div>
+
+      {/* Fora do max-w-4xl: gráfico e tabela larga precisam do espaço todo. */}
+      {preview?.indicadores && (
+        <PreviaIndicadores
+          indicadores={preview.indicadores}
+          totalProcessos={preview.resumo.totalRegistros}
+        />
+      )}
     </Pagina>
   )
 }

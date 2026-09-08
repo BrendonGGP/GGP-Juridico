@@ -4,6 +4,9 @@ import { LIMITES_PADRAO } from '@/lib/ingestao/validar-upload'
 import { ehDesenvolvimento, authConfigurada } from '@/lib/config'
 import { usuarioAtual, podeImportar } from '@/lib/auth/sessao'
 import { registrar } from '@/lib/auth/auditoria'
+import { montarPainel } from '@/lib/painel/montar'
+import { processosDePlanilha, parcelasDePlanilha } from '@/lib/painel/de-planilha'
+import type { DadosPainel } from '@/lib/painel/tipos'
 
 /**
  * Passo 1 da importação: preview. NÃO grava nada.
@@ -105,7 +108,29 @@ export async function POST(req: Request) {
     )
   }
 
-  // A resposta leva apenas o RESUMO e as pendências — nunca os registros, que
+  /**
+   * Prévia dos indicadores.
+   *
+   * Roda o MESMO motor de cálculo que as telas usam depois de gravar — o
+   * caminho é `planilha -> ProcessoParaCalculo -> montarPainel`, idêntico ao
+   * de `de-banco.ts`. Se os números aqui e os do painel divergissem, a prévia
+   * não serviria para decidir nada.
+   *
+   * Nada é gravado: os registros existem só na memória desta requisição.
+   */
+  const painel = montarPainel(
+    processosDePlanilha(preparacao.registros),
+    {
+      id: 'previa',
+      mesReferencia: preparacao.mesReferencia,
+      concluidaEm: null,
+      arquivoGeralNome: geral.name,
+      totalPendencias: preparacao.resumo.totalPendencias,
+    },
+    parcelasDePlanilha(preparacao.registros)
+  )
+
+  // A resposta leva RESUMO, pendências e AGREGADOS — nunca os registros, que
   // carregam nome de parte, placa, apólice e valores por processo.
   return NextResponse.json({
     ok: true,
@@ -117,5 +142,45 @@ export async function POST(req: Request) {
       ...preparacao.pendencias,
       ...preparacao.registros.flatMap(r => r.pendencias),
     ].slice(0, 500),
+    indicadores: recortarParaPrevia(painel),
   })
+}
+
+/**
+ * O que da prévia pode atravessar para o navegador.
+ *
+ * As listas do Top ficam de FORA: elas identificam processo por processo, com
+ * número e valor — exatamente o que o comentário acima proíbe. Na tela do
+ * painel isso é aceitável porque há sessão e perfil; aqui a resposta é de uma
+ * análise que qualquer pessoa com acesso à tela dispara.
+ *
+ * O que passa são agregados: totais, contagens e percentuais. Suficiente para
+ * decidir "estes números fazem sentido?", que é a pergunta da prévia.
+ */
+function recortarParaPrevia(painel: DadosPainel) {
+  return {
+    cenarios: painel.cenarios,
+    projecao: {
+      horizontes: painel.projecao.horizontes,
+      ultimoMesComDados: painel.projecao.ultimoMesComDados,
+      totalGeral: painel.projecao.totalGeral,
+      serie: painel.projecao.serie,
+    },
+    exito: {
+      percentual: painel.exito.percentual,
+      valorPedido: painel.exito.valorPedido,
+      valorDevido: painel.exito.valorDevido,
+      valorEconomizado: painel.exito.valorEconomizado,
+      processosComSentenca: painel.exito.processosComSentenca,
+    },
+    tempo: painel.tempo,
+    recorrencia: painel.recorrencia,
+    mga: painel.mga,
+    // Só as CONTAGENS das duas listas — nunca os processos que as compõem.
+    top: {
+      quantidadePorValor: painel.top.topPorValor.length,
+      elegiveisAoTop: painel.top.elegiveisAoTop,
+      quantidadeTrabalhistaIdpj: painel.top.trabalhistaEIdpj.length,
+    },
+  }
 }
