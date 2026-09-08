@@ -4,6 +4,7 @@ import { useRef, useState } from 'react'
 import { Pagina } from '@/components/shell/Pagina'
 import type { UsuarioVisivel } from '@/components/shell/tipos'
 import { PreviaIndicadores, type IndicadoresPrevia } from './PreviaIndicadores'
+import { Confirmacao } from './Confirmacao'
 
 interface Pendencia {
   tipo: string
@@ -157,6 +158,20 @@ export function FormularioImportacao({ usuario }: { usuario: UsuarioVisivel | nu
       </form>
 
       {preview && <ResultadoPreview preview={preview} />}
+
+      {/* Grava. Reenvia os arquivos: o servidor reprocessa em vez de confiar
+          no que o navegador devolve. */}
+      {preview && geral && (
+        <Confirmacao
+          mesReferencia={preview.mesReferencia}
+          idempotencyKey={preview.idempotencyKey}
+          geral={geral}
+          acordos={acordos}
+          totalProcessos={preview.resumo.totalRegistros}
+          totalPendencias={preview.resumo.totalPendencias}
+          semAutenticacao={usuario === null}
+        />
+      )}
       </div>
 
       {/* Fora do max-w-4xl: gráfico e tabela larga precisam do espaço todo. */}
@@ -325,13 +340,6 @@ function ResultadoPreview({ preview }: { preview: Preview }) {
         )}
       </div>
 
-      <div className="rounded-lg border border-borda p-4">
-        <p className="text-sm">
-          A gravação ainda não foi implementada nesta tela. O motor de ingestão está
-          pronto e testado; a confirmação entra na próxima etapa, junto com a
-          autenticação.
-        </p>
-      </div>
     </section>
   )
 }
