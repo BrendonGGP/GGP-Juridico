@@ -21,22 +21,48 @@ export type TipoAba =
   | 'DESCONHECIDA'
 
 /**
- * Abas-carteira conhecidas, em julho/2026.
+ * Abas-carteira conhecidas, por PADRÃO e não por nome exato.
  *
- * `DEMAIS SEVEN, PEDRO, FABIANA...` NÃO é uma empresa: mistura 8 clientes e
- * precisa ser desmembrada pela coluna Cliente (ver seção 6.2 da especificação).
+ * Motivo, aprendido em agosto/2026: comparar o nome inteiro fez três abas
+ * legítimas caírem como DESCONHECIDA porque o escritório as renomeou —
+ *
+ *   'DEMAIS SEVEN, PEDRO, FABIANA...'  ->  'DEMAIS SEVEN, PEDRO, SAMUEL...'
+ *   'REGRESSIVAS DE COBRANÇA - SPLIT'  ->  'REGRESSIVAS SPLIT RISK'
+ *   'SEVEN INSURTECH'                  ->  'INSURTECH'
+ *
+ * O resultado foi uma base com 343 processos em vez de ~800: número menor,
+ * com cara de correto. A aba BAIXADOS já era reconhecida por substring pelo
+ * mesmo motivo; o resto ficou para trás.
+ *
+ * Cada padrão identifica a carteira pelo que NÃO muda — o nome do parceiro —
+ * e não pela redação completa. Continua sendo lista de PERMISSÃO: aba que não
+ * casa com nenhum padrão vira pendência, nunca é ingerida em silêncio.
  */
-const CARTEIRAS_CONHECIDAS = [
-  'DEMAIS SEVEN, PEDRO, FABIANA...',
-  'SPLIT RISK SEGURADORA S.A',
-  'REGRESSIVAS DE COBRANÇA - SPLIT',
-  'SEVEN INSURTECH',
+interface PadraoCarteira {
+  /** Reconhecido quando TODOS os termos aparecem no nome normalizado. */
+  termos: string[]
+  /** Mistura vários clientes e exige desmembramento pela coluna Cliente. */
+  multiCliente?: boolean
+}
+
+const PADROES_CARTEIRA: PadraoCarteira[] = [
+  // "DEMAIS SEVEN, PEDRO, ..." — os nomes após "DEMAIS" mudam a cada mês.
+  // NÃO é uma empresa: mistura 8 clientes (seção 6.2 da especificação).
+  { termos: ['demais'], multiCliente: true },
+
+  // "REGRESSIVAS ..." precede a checagem de "split", que também casaria com
+  // a seguradora. A ordem deste array importa: o primeiro padrão vence.
+  { termos: ['regressivas'] },
+
+  { termos: ['split'] },
+  { termos: ['insurtech'] },
 ]
 
-const CARTEIRAS_NORMALIZADAS = new Set(CARTEIRAS_CONHECIDAS.map(chaveComparacao))
-
-/** Abas-carteira que misturam mais de um cliente e exigem desmembramento. */
-const MULTI_CLIENTE = new Set([chaveComparacao('DEMAIS SEVEN, PEDRO, FABIANA...')])
+/** Primeiro padrão que reconhece a aba, ou null. */
+function padraoDaAba(nome: string): PadraoCarteira | null {
+  const k = chaveComparacao(nome)
+  return PADROES_CARTEIRA.find(p => p.termos.every(t => k.includes(t))) ?? null
+}
 
 export function classificarAba(nome: string): TipoAba {
   const k = chaveComparacao(nome)
@@ -50,14 +76,14 @@ export function classificarAba(nome: string): TipoAba {
 
   if (k.includes('acordos')) return 'ACORDOS'
 
-  if (CARTEIRAS_NORMALIZADAS.has(k)) return 'CARTEIRA'
+  if (padraoDaAba(nome)) return 'CARTEIRA'
 
   return 'DESCONHECIDA'
 }
 
 /** A aba mistura clientes distintos e precisa ser quebrada pela coluna Cliente? */
 export function exigeDesmembramento(nome: string): boolean {
-  return MULTI_CLIENTE.has(chaveComparacao(nome))
+  return padraoDaAba(nome)?.multiCliente === true
 }
 
 /**

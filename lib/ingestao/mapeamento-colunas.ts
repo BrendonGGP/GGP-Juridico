@@ -172,11 +172,20 @@ export const APELIDOS: Record<CampoLogico, string[]> = {
   ],
   numero_apolice: ['Nº da apólice', 'Nº da apolice', 'Numero da apólice'],
   mga: ['M.G.A', 'MGA', 'M.G.A.'],
-  // jun: "MGA ESTÁ NO POLO PASSIVO"  ->  jul: "M.G.A está no polo passivo (Sim ou Não)"
+  // jun: "MGA ESTÁ NO POLO PASSIVO"
+  //  ->  jul: "M.G.A está no polo passivo (Sim ou Não)"
+  //  ->  ago: "M.G.A está no polo (Sim ou Não)"   — caiu a palavra "passivo"
+  //
+  // O campo lógico mantém o nome `mga_polo_passivo` porque o SIGNIFICADO não
+  // mudou: continua indicando se a M.G.A está no polo passivo. Renomeá-lo a
+  // cada redação da planilha espalharia a instabilidade para o schema e para
+  // o cálculo.
   mga_polo_passivo: [
     'M.G.A está no polo passivo (Sim ou Não)',
+    'M.G.A está no polo (Sim ou Não)',
     'MGA ESTÁ NO POLO PASSIVO',
     'M.G.A está no polo passivo',
+    'M.G.A está no polo',
   ],
   decorrente_de_sinistro: ['São decorrentes de sinistros?', 'São decorrentes de sinistro?'],
 
